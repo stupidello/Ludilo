@@ -1,0 +1,12 @@
+{
+  "name": "ludilo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ludilo: ludo with landmines",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
