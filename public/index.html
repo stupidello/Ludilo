@@ -149,6 +149,7 @@
   @media (max-width:1100px){.wrap{grid-template-columns:minmax(0,1fr) 300px}.chat{grid-column:1 / -1;order:3;height:260px}}
   @media (max-width:760px){.wrap{grid-template-columns:1fr}}
   .wrap.nochat{grid-template-columns:minmax(0,1fr) 320px}
+  @media (max-width:760px){.wrap.nochat{grid-template-columns:1fr}}   /* phones: one column even with chat closed */
   .wrap.nochat .chat{display:none}
   #chatbtn{position:fixed;left:14px;bottom:14px;z-index:20;display:none;box-shadow:0 6px 18px rgba(0,0,0,.4)}
   #unread{color:#ffcf6b;font-weight:800}
@@ -690,7 +691,7 @@ async function enterRoom(code,token){
   <div class="wrap">
     <div class="chat"><h2 style="display:flex;justify-content:space-between;align-items:center">💬 Chat<button data-act="chatmin" title="Minimize" style="padding:2px 10px">–</button></h2><div class="msgs" id="msgs"></div>
       <form id="chatform"><input id="chatin" placeholder="Say something…" maxlength="200" autocomplete="off"><button>Send</button></form></div>
-    <div><h1>Ludilo</h1><p class="sub">Room <b>${esc(code)}</b> · v1.0</p>
+    <div><h1>Ludilo</h1><p class="sub">Room <b>${esc(code)}</b> · v1.1</p>
       <div class="boardwrap"><svg id="board" viewBox="0 0 440 440" aria-label="Game board"></svg><div id="pop"></div><div id="ptimer"></div><div id="bombbox"></div></div><div id="pad"></div></div>
     <div class="panel" id="panel"></div>
   </div>`;
