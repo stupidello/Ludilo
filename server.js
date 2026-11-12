@@ -325,12 +325,88 @@ function tickBots(room) {
   room.botTimer = setTimeout(() => { room.botTimer = null; try { act(); } catch (e) { console.error(e); } tickBots(room); }, wait);
 }
 
+/* ============================== RESTORE ============================== */
+// After a server restart the rooms are gone. Every browser keeps the last snapshot of its game,
+// so the first one to come back rebuilds the room, and the others reclaim their own seats.
+function validSnap(snap) {
+  try {
+    if (!snap || !Array.isArray(snap.seats) || snap.seats.length !== 3) return false;
+    const g = snap.game;
+    if (g) {
+      if (!Array.isArray(g.pawns) || g.pawns.length !== 3) return false;
+      for (const ps of g.pawns) if (!Array.isArray(ps) || ps.length !== 4 || ps.some(r => !Number.isInteger(r) || r < -1 || r > END)) return false;
+    }
+    return true;
+  } catch (e) { return false; }
+}
+function rebuildRoom(code, snap) {
+  const room = {
+    code, theme: snap.theme === 'classic' ? 'classic' : 'fantasy', game: null, seq: 0, events: [], waiters: [], busyUntil: 0, botTimer: null, lastActive: Date.now(),
+    seats: snap.seats.map((x, i) => {
+      const bot = !!x.bot, human = !!x.human && !bot;
+      return { token: null, name: clean(x.name), bot, open: !bot && !human, reserved: human, faction: FKEYS.includes(x.faction) ? x.faction : FKEYS[i],
+               c: PALETTE.some(([, c]) => c === x.c) ? x.c : PALETTE[i][1], lastSeen: 0 };
+    }),
+    hostToken: null, hostSeat: Number.isInteger(snap.host) ? snap.host : -1,
+    log: (Array.isArray(snap.log) ? snap.log : []).filter(l => typeof l === 'string').slice(0, 60).map(l => l.slice(0, 200)),
+    chat: [], chatId: 0, timeLimit: [0, 15, 30, 60].includes(snap.timeLimit) ? snap.timeLimit : 0, turnTimer: null, timerKey: '',
+  };
+  (Array.isArray(snap.chat) ? snap.chat : []).slice(-40).forEach(m => {
+    if (m && typeof m.text === 'string') room.chat.push({ id: ++room.chatId, seat: Number.isInteger(m.seat) ? m.seat : -1, sys: !!m.sys, name: clean(m.name) || 'Player', c: typeof m.c === 'string' ? m.c.slice(0, 9) : '#9aa3b5', text: m.text.slice(0, 200) });
+  });
+  rooms.set(code, room);
+  const g = snap.game;
+  if (g) {
+    const G = newGame();
+    G.pawns = g.pawns.map(a => a.slice());
+    for (const k in (g.mines || {})) { const a = +k, o = +g.mines[k]; if (Number.isInteger(a) && a >= 0 && a < N && [0, 1, 2].includes(o)) G.mines[a] = o; }
+    G.cur = [0, 1, 2].includes(g.cur) ? g.cur : 0;
+    G.die = Number.isInteger(g.die) && g.die >= 1 && g.die <= 6 ? g.die : null;
+    G.rollsLeft = Number.isInteger(g.rollsLeft) ? Math.max(0, Math.min(3, g.rollsLeft)) : 1;
+    G.winner = [0, 1, 2].includes(g.winner) ? g.winner : null;
+    if (g.open && typeof g.open === 'object') {
+      const cont = (Array.isArray(g.open.contenders) ? g.open.contenders : [0, 1, 2]).filter(x => [0, 1, 2].includes(x));
+      const vals = {}; for (const k in (g.open.vals || {})) { const v = +g.open.vals[k]; if ([0, 1, 2].includes(+k) && v >= 1 && v <= 6) vals[+k] = v; }
+      G.open = { contenders: cont.length ? cont : [0, 1, 2], vals, done: !!g.open.done, winner: [0, 1, 2].includes(g.open.winner) ? g.open.winner : null };
+    }
+    room.game = G;
+    const ph = g.phase;
+    if (ph === 'over' && G.winner !== null) G.phase = 'over';
+    else if (ph === 'opening' && !G.open.done) G.phase = 'opening';
+    else if (ph === 'choose' && G.die) { G.phase = 'choose'; G.moves = legal(G, G.cur, G.die); if (!G.moves.length) { startTurn(room, G.cur); } }
+    else if (ph === 'guess' && g.oe && Number.isInteger(g.oe.i) && G.pawns[G.cur][g.oe.i] >= 0 && G.pawns[G.cur][g.oe.i] <= 38 && isOE(abs(G.cur, G.pawns[G.cur][g.oe.i]))) { G.phase = 'guess'; G.oe = { i: g.oe.i }; }
+    else if (ph === 'roll') G.phase = 'roll';
+    else startTurn(room, G.open.done && G.open.winner !== null && ph === 'opening' ? G.open.winner : G.cur);
+  }
+  logMsg(room, '♻️ The server restarted: game restored.');
+  emit(room, { t: 'state' });
+  return room;
+}
+function handleRestore(res, body) {
+  const code = String(body.room || '').toUpperCase(), t = body.token, want = body.seat;
+  if (!/^[A-Z]{4}$/.test(code) || typeof t !== 'string' || t.length < 8 || t.length > 64) return send(res, 400, { error: 'bad request' });
+  let room = rooms.get(code);
+  if (!room) {
+    if (!validSnap(body.snap)) return send(res, 404, { error: 'Room not found' });
+    room = rebuildRoom(code, body.snap);
+  }
+  if (seatOf(room, t) >= 0) return send(res, 200, { room: code, token: t });
+  if (Number.isInteger(want) && want >= 0 && want < 3 && room.seats[want].reserved && !room.seats[want].token) {
+    const st = room.seats[want]; st.token = t; st.reserved = false; st.lastSeen = Date.now();
+    if (want === room.hostSeat || !room.hostToken) room.hostToken = t;
+    emit(room, { t: 'state', m: `${seatName(room, want)} reconnected.` });
+    tickBots(room);
+  }
+  return send(res, 200, { room: code, token: t });
+}
+
 /* ============================== HTTP ============================== */
 function send(res, code, obj) { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); }
 function you(room, t) { const seat = seatOf(room, t); return { seat, host: !!t && t === room.hostToken }; }
 
 function handleApi(req, res, body) {
   const op = body.op, room = body.room ? rooms.get(String(body.room).toUpperCase()) : null, t = body.token;
+  if (op === 'restore') return handleRestore(res, body);
   if (op === 'create') { const { room: r, t: tk } = createRoom(body.name); chatMsg(r, -1, `${seatName(r, 0)} created the room. Share the code with your friends!`, true); emit(r, { t: 'state', m: `${seatName(r, 0)} created the room.` }); return send(res, 200, { room: r.code, token: tk }); }
   if (!room) return send(res, 404, { error: 'Room not found. Check the code.' });
   room.lastActive = Date.now();
@@ -438,6 +514,8 @@ setInterval(() => { const now = Date.now(); for (const [c, r] of rooms) if (now 
 // refresh "online" dots in the lobby now and then
 setInterval(() => { for (const r of rooms.values()) if (!r.game && r.waiters.length) emit(r, { t: 'state' }); }, 10000);
 
+process.on('uncaughtException', e => console.error('Unexpected error (server keeps running):', e));
+process.on('unhandledRejection', e => console.error('Unexpected promise error (server keeps running):', e));
 server.listen(PORT, () => {
   const nets = require('os').networkInterfaces();
   const lan = Object.values(nets).flat().filter(n => n && n.family === 'IPv4' && !n.internal).map(n => `http://${n.address}:${PORT}`);

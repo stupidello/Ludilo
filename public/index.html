@@ -547,13 +547,16 @@ function loadToken(code){try{return localStorage.getItem('ludo:'+code);}catch(e)
 
 const queue=[];let playing=false;
 const idle=()=>!playing&&queue.length===0;
+let claimTried=false;
 async function pollLoop(){
   for(;;){
     try{
       const r=await fetch(`/poll?room=${NET.room}&token=${NET.token||''}&since=${NET.seq}`);
-      if(r.status===404){showHome('That room no longer exists.');return;}
+      if(r.status===404){if(await tryRestore(NET.room,NET.token)){NET.seq=0;queue.length=0;continue;}showHome('That room no longer exists.');return;}
       const j=await r.json();
       ME=j.you.seat;HOST=j.you.host;
+      if(ME<0&&!claimTried){claimTried=true;const b=loadBackup(NET.room);   // room was rebuilt by someone else: take my seat back
+        if(b&&b.me>=0&&await tryRestore(NET.room,NET.token)){NET.seq=0;queue.length=0;continue;}}
       for(const ev of j.events){
         if(ev.seq<=NET.seq) continue;
         NET.seq=ev.seq;
@@ -571,8 +574,14 @@ async function runQueue(){
   try{while(queue.length){const ev=queue.shift();await play(ev);applySnap(ev.s);}}
   finally{playing=false;render();}
 }
+function saveBackup(s){try{localStorage.setItem('ludo:snap:'+s.code,JSON.stringify({s,me:ME,at:Date.now()}));}catch(e){}}
+function loadBackup(code){try{const b=JSON.parse(localStorage.getItem('ludo:snap:'+code)||'null');if(b&&Date.now()-b.at<12*3600e3)return b;}catch(e){}return null;}
+async function tryRestore(code,token){        // the server lost the room: send our copy so it can be rebuilt
+  const b=loadBackup(code);if(!b||!token)return false;
+  try{const r=await fetch('/api',{method:'POST',body:JSON.stringify({op:'restore',room:code,token,seat:b.me,snap:b.s})});const j=await r.json();return !j.error;}catch(e){return false;}
+}
 function applySnap(s){
-  V=s;THEME=s.theme;
+  V=s;saveBackup(s);THEME=s.theme;
   PLAYERS=s.seats.map(x=>({name:x.name,c:x.c,bot:x.bot,faction:x.faction,open:x.open,human:x.human,online:x.online}));
   const g=s.game;
   if(!g){const keep=S;S=blankView();S.face=keep.face;render();return;}
@@ -681,7 +690,7 @@ function showHome(err){
     <div class="or">— or join with a code —</div>
     <div class="row"><input id="code" placeholder="CODE" maxlength="4" value="${esc(want)}" style="text-transform:uppercase;letter-spacing:4px;font-weight:700"><button data-act="join">Join</button></div>
     <div class="err" id="err">${esc(err||'')}</div>
-    <div class="hint" style="text-align:right">v1.1</div>
+    <div class="hint" style="text-align:right">v1.2</div>
   </div>`;
 }
 async function enterRoom(code,token){
@@ -691,7 +700,7 @@ async function enterRoom(code,token){
   <div class="wrap">
     <div class="chat"><h2 style="display:flex;justify-content:space-between;align-items:center">💬 Chat<button data-act="chatmin" title="Minimize" style="padding:2px 10px">–</button></h2><div class="msgs" id="msgs"></div>
       <form id="chatform"><input id="chatin" placeholder="Say something…" maxlength="200" autocomplete="off"><button>Send</button></form></div>
-    <div><h1>Ludilo</h1><p class="sub">Room <b>${esc(code)}</b> · v1.1</p>
+    <div><h1>Ludilo</h1><p class="sub">Room <b>${esc(code)}</b> · v1.2</p>
       <div class="boardwrap"><svg id="board" viewBox="0 0 440 440" aria-label="Game board"></svg><div id="pop"></div><div id="ptimer"></div><div id="bombbox"></div></div><div id="pad"></div></div>
     <div class="panel" id="panel"></div>
   </div>`;
@@ -915,6 +924,7 @@ document.addEventListener('keyup',e=>{ if(isSpace(e)&&e.target.tagName!=='INPUT'
   if(want&&tk){
     const j=await (await fetch('/api',{method:'POST',body:JSON.stringify({op:'join',room:want,token:tk})})).json();
     if(!j.error) return enterRoom(j.room,j.token);
+    if(await tryRestore(want,tk)) return enterRoom(want,tk);
   }
   showHome();
 })();
