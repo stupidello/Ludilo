@@ -21,7 +21,7 @@ function newGame() {
   return {
     pawns: [[-1, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1]], mines: {},
     cur: 0, phase: 'opening', die: null, rollsLeft: 0, bonus: false, moves: [], oe: null, winner: null,
-    open: { contenders: [0, 1, 2], vals: {}, done: false, winner: null },
+    open: { contenders: [0, 1, 2], vals: {}, done: false, winner: null }, startedAt: Date.now(), endedAt: null,
   };
 }
 function fieldPawnsAt(G, a) { const r = []; G.pawns.forEach((ps, p) => ps.forEach((rel, i) => { if (rel >= 0 && rel <= 38 && abs(p, rel) === a) r.push({ p, i }); })); return r; }
@@ -55,6 +55,7 @@ function legal(G, p, r) {
 }
 
 // resolve a pawn landing on the field; fx(event) reports what happened (null while bots think)
+const vcount = list => { const o = {}; list.forEach(v => o[v.p] = (o[v.p] || 0) + 1); return o; };
 function land(G, p, i, fx) {
   const a = abs(p, G.pawns[p][i]);
   if (G.mines[a] !== undefined) {
@@ -64,11 +65,11 @@ function land(G, p, i, fx) {
     const victims = fieldPawnsAt(G, a);
     victims.forEach(v => G.pawns[v.p][v.i] = -1);
     delete G.mines[a];
-    fx && fx({ t: 'boom', a, owner, n: victims.length });
+    fx && fx({ t: 'boom', a, owner, n: victims.length, vic: vcount(victims) });
     return;
   }
   const en = fieldPawnsAt(G, a).filter(v => v.p !== p);
-  if (en.length) { en.forEach(v => G.pawns[v.p][v.i] = -1); fx && fx({ t: 'capture', a, p, victim: en[0].p, n: en.length }); }
+  if (en.length) { en.forEach(v => G.pawns[v.p][v.i] = -1); fx && fx({ t: 'capture', a, p, victim: en[0].p, n: en.length, vic: vcount(en) }); }
 }
 
 /* ============================== BOTS ============================== */
@@ -118,6 +119,7 @@ function botPick(G) {
     const v = (r.oe !== null ? Math.max(oeValue(r.st, G.cur, r.oe, 'odd'), oeValue(r.st, G.cur, r.oe, 'even')) : evalFor(G.cur, r.st)) + Math.random() * 0.01;
     if (v > bv) { bv = v; best = m; }
   }
+  if (G.moves.every(m => m.t === 'mine') && evalFor(G.cur, cloneState(G)) >= bv) return null;   // planting is optional
   return best;
 }
 function botGuess(G) { const st = cloneState(G); return oeValue(st, G.cur, G.oe.i, 'odd') >= oeValue(st, G.cur, G.oe.i, 'even') ? 'odd' : 'even'; }
@@ -158,7 +160,7 @@ function publicState(room) {
     code: room.code, theme: room.theme, timeLimit: room.timeLimit,
     seats: room.seats.map((s, i) => ({ name: seatName(room, i), bot: s.bot, open: s.open, human: !!s.token, faction: s.faction, c: colorOf(room, i), online: !!s.token && Date.now() - s.lastSeen < 15000 })),
     host: seatOf(room, room.hostToken),
-    game: G && { pawns: G.pawns, mines: G.mines, cur: G.cur, phase: G.phase, die: G.die, rollsLeft: G.rollsLeft, moves: G.phase === 'choose' ? G.moves : [], oe: G.oe, winner: G.winner, open: G.open },
+    game: G && { feed: (G.feed || []).slice(0, 40), elapsed: (G.endedAt || Date.now()) - (G.startedAt || Date.now()), auto: room.auto != null && room.auto === G.turnId, pawns: G.pawns, mines: G.mines, cur: G.cur, phase: G.phase, die: G.die, rollsLeft: G.rollsLeft, moves: G.phase === 'choose' ? G.moves : [], oe: G.oe, winner: G.winner, open: G.open },
     log: room.log.slice(0, 30),
     chat: room.chat.slice(-40),
   };
@@ -173,8 +175,18 @@ const nm = (room, p) => seatName(room, p);
 const poss = (room, p) => /s$/i.test(nm(room, p)) ? nm(room, p) + "'" : nm(room, p) + "'s";
 
 // every change is an event with a snapshot; clients replay them in order with animations
+function feedAdd(room, ev) {
+  const G = room.game; if (!G) return;
+  let e = null;
+  if (ev.t === 'roll') e = { k: 'roll', p: ev.p, v: ev.v, ...(ev.kind === 'open' ? { o: 1 } : {}), ...(ev.kind === 'guess' ? { g: ev.g, ok: (ev.g === 'odd') === (ev.v % 2 === 1) } : {}) };
+  else if (ev.t === 'capture') e = { k: 'cap', p: ev.p, vic: ev.vic };
+  else if (ev.t === 'boom') e = { k: 'boom', o: ev.owner, vic: ev.vic };
+  else if (ev.win != null) e = { k: 'win', p: ev.win };
+  if (e) { e.t = Date.now(); G.feed = [e, ...(G.feed || [])].slice(0, 60); }
+}
 function emit(room, ev) {
   if (ev.m) logMsg(room, ev.m);
+  feedAdd(room, ev);
   const now = Date.now();
   const dur = ev.t === 'hop' ? DUR.hop * ev.path.length + 100 : ev.t === 'pause' ? ev.ms : (DUR[ev.t] || 0);
   room.busyUntil = Math.max(now, room.busyUntil) + dur;
@@ -211,12 +223,15 @@ function openRoll(room, p) {
 }
 function startTurn(room, p) {
   const G = room.game;
-  G.cur = p; G.bonus = false; G.moves = []; G.die = null; G.oe = null;
+  G.cur = p; G.bonus = false; G.moves = []; G.die = null; G.oe = null; G.turnId = (G.turnId || 0) + 1; room.auto = null;
   G.rollsLeft = rollsAllowed(G, p); G.phase = 'roll';
   emit(room, { t: 'state', m: `${poss(room, p)} turn` + (G.rollsLeft === 3 ? ' (3 tries to roll a 6)' : '') });
 }
 function doRoll(room, p) {
   const G = room.game;
+  if (G && G.phase === 'choose' && G.cur === p && G.moves.length && G.moves.every(m => m.t === 'mine')) {   // mines are optional: roll again instead
+    G.moves = []; G.bonus = false; G.rollsLeft = 1; G.phase = 'roll'; logMsg(room, `${nm(room, p)} rolls again without planting.`);
+  }
   if (!G || G.phase !== 'roll' || G.cur !== p) return;
   const r = d6(); G.die = r; G.rollsLeft--;
   if (r === 6) G.bonus = true;
@@ -274,39 +289,43 @@ function doGuess(room, p, g) {
 }
 function afterAction(room) {
   const G = room.game, p = G.cur;
-  if (G.pawns[p].every(r => r >= HOME0)) { G.winner = p; G.phase = 'over'; emit(room, { t: 'state', m: `🏆 ${nm(room, p)} win${/s$/i.test(nm(room, p)) ? '' : 's'}!` }); return; }
+  if (G.pawns[p].every(r => r >= HOME0)) { G.winner = p; G.phase = 'over'; G.endedAt = Date.now(); emit(room, { t: 'state', win: p, m: `🏆 ${nm(room, p)} win${/s$/i.test(nm(room, p)) ? '' : 's'}!` }); return; }
   if (G.bonus) { G.bonus = false; G.rollsLeft = 1; G.phase = 'roll';   // a bonus roll is always one roll; 3 tries only at the start of a turn
   emit(room, { t: 'state', m: 'A 6: roll again.' }); return; }
   endTurn(room);
 }
 function endTurn(room) { startTurn(room, (room.game.cur + 1) % 3); }
 
-// optional turn timer: if a human takes too long, play for them
+// optional turn timer: one countdown per turn. When it runs out, an autopilot (the bot brain)
+// finishes that player's turn; any action from the player takes control back with a fresh countdown.
 function armTimer(room) {
   const G = room.game;
   if (!G) return;
-  let kind = null;
-  if (room.timeLimit) {
-    if (G.phase === 'opening' && !G.open.done && G.open.contenders.some(q => !room.seats[q].bot && G.open.vals[q] == null)) kind = 'open';
-    else if (['roll', 'choose', 'guess'].includes(G.phase) && !room.seats[G.cur].bot) kind = G.phase;
+  let key = '';
+  if (room.timeLimit && G.phase !== 'over') {
+    if (G.phase === 'opening' && !G.open.done) {
+      if (G.open.contenders.some(q => !room.seats[q].bot && G.open.vals[q] == null)) key = 'open:' + G.open.contenders.join() + ':' + (room.treset || 0);
+    } else if (!room.seats[G.cur].bot && room.auto !== G.turnId) key = 'turn:' + G.turnId + ':' + (room.treset || 0);
   }
-  const key = kind ? JSON.stringify([kind, G.cur, G.rollsLeft, G.die, G.open.vals, G.pawns, room.seq > 0 ? G.phase : 0]) : '';
   if (key === room.timerKey) return;
   room.timerKey = key; clearTimeout(room.turnTimer); room.turnTimer = null;
-  if (!kind) { emit(room, { t: 'tick', off: true }); return; }
+  if (!key) { emit(room, { t: 'tick', off: true }); return; }
   const wait = Math.max(0, room.busyUntil - Date.now()) + room.timeLimit * 1000;
   emit(room, { t: 'tick', ms: room.timeLimit * 1000 });
   room.turnTimer = setTimeout(() => {
     room.turnTimer = null; room.timerKey = '';
     try {
-      logMsg(room, '⏱ Time is up: auto move.');
       if (G.phase === 'opening') G.open.contenders.filter(q => !room.seats[q].bot && G.open.vals[q] == null).forEach(q => openRoll(room, q));
-      else if (G.phase === 'roll') doRoll(room, G.cur);
-      else if (G.phase === 'choose') { const m = botPick(G); if (m) doMove(room, G.cur, m); }
-      else if (G.phase === 'guess') doGuess(room, G.cur, botGuess(G));
+      else if (!room.seats[G.cur].bot) { room.auto = G.turnId; emit(room, { t: 'state', m: `⏱ Time is up: autopilot plays for ${nm(room, G.cur)}.` }); }
     } catch (e) { console.error(e); }
     tickBots(room);
   }, wait);
+}
+function wakeUp(room, seat) {        // the player is back: stop the autopilot
+  const G = room.game;
+  if (!G || seat !== G.cur || room.auto !== G.turnId) return;
+  room.auto = null; room.treset = (room.treset || 0) + 1; clearTimeout(room.botTimer); room.botTimer = null;
+  emit(room, { t: 'state', m: `${nm(room, seat)} took over again.` });
 }
 function tickBots(room) {
   armTimer(room);
@@ -315,9 +334,9 @@ function tickBots(room) {
   if (G.phase === 'opening' && !G.open.done) {
     const bp = G.open.contenders.find(q => room.seats[q].bot && G.open.vals[q] == null);
     if (bp !== undefined) { think = 500 + Math.random() * 500; act = () => openRoll(room, bp); }
-  } else if (room.seats[G.cur].bot) {
+  } else if (room.seats[G.cur].bot || room.auto === G.turnId) {
     if (G.phase === 'roll') act = () => doRoll(room, G.cur);
-    else if (G.phase === 'choose') { think = 750; act = () => { const m = botPick(G); if (m) doMove(room, G.cur, m); }; }
+    else if (G.phase === 'choose') { think = 750; act = () => { const m = botPick(G); if (m) doMove(room, G.cur, m); else doRoll(room, G.cur); }; }
     else if (G.phase === 'guess') { think = 800; act = () => doGuess(room, G.cur, botGuess(G)); }
   }
   if (!act) return;
@@ -349,7 +368,7 @@ function rebuildRoom(code, snap) {
     }),
     hostToken: null, hostSeat: Number.isInteger(snap.host) ? snap.host : -1,
     log: (Array.isArray(snap.log) ? snap.log : []).filter(l => typeof l === 'string').slice(0, 60).map(l => l.slice(0, 200)),
-    chat: [], chatId: 0, timeLimit: [0, 15, 30, 60].includes(snap.timeLimit) ? snap.timeLimit : 0, turnTimer: null, timerKey: '',
+    chat: [], chatId: 0, timeLimit: Number.isInteger(snap.timeLimit) && snap.timeLimit >= 0 && snap.timeLimit <= 60 ? snap.timeLimit : 0, turnTimer: null, timerKey: '',
   };
   (Array.isArray(snap.chat) ? snap.chat : []).slice(-40).forEach(m => {
     if (m && typeof m.text === 'string') room.chat.push({ id: ++room.chatId, seat: Number.isInteger(m.seat) ? m.seat : -1, sys: !!m.sys, name: clean(m.name) || 'Player', c: typeof m.c === 'string' ? m.c.slice(0, 9) : '#9aa3b5', text: m.text.slice(0, 200) });
@@ -369,6 +388,11 @@ function rebuildRoom(code, snap) {
       const vals = {}; for (const k in (g.open.vals || {})) { const v = +g.open.vals[k]; if ([0, 1, 2].includes(+k) && v >= 1 && v <= 6) vals[+k] = v; }
       G.open = { contenders: cont.length ? cont : [0, 1, 2], vals, done: !!g.open.done, winner: [0, 1, 2].includes(g.open.winner) ? g.open.winner : null };
     }
+    if (Number.isFinite(g.elapsed) && g.elapsed >= 0) G.startedAt = Date.now() - g.elapsed;
+    const okP = x => [0, 1, 2].includes(x), okV = v => v && typeof v === 'object' && Object.keys(v).every(k => okP(+k) && Number.isInteger(v[k]) && v[k] > 0 && v[k] < 13);
+    G.feed = (Array.isArray(g.feed) ? g.feed : []).filter(e => e && Number.isFinite(e.t) && (
+      (e.k === 'roll' && okP(e.p) && e.v >= 1 && e.v <= 6) || (e.k === 'cap' && okP(e.p) && okV(e.vic)) || (e.k === 'boom' && okP(e.o) && okV(e.vic)) || (e.k === 'win' && okP(e.p))))
+      .slice(0, 40).map(e => ({ k: e.k, t: e.t, p: e.p, o: e.o, v: e.v, vic: e.vic, g: e.g === 'odd' || e.g === 'even' ? e.g : undefined, ok: !!e.ok }));
     room.game = G;
     const ph = g.phase;
     if (ph === 'over' && G.winner !== null) G.phase = 'over';
@@ -451,12 +475,13 @@ function handleApi(req, res, body) {
     if (op === 'seat' && isHost && target >= 0 && !room.seats[target].token) {        // open seat <-> bot
       const s = room.seats[target]; s.bot = !!body.bot; s.open = !s.bot; emit(room, { t: 'state' });
     }
-    if (op === 'timer' && isHost && [0, 15, 30, 60].includes(body.s)) { room.timeLimit = body.s; emit(room, { t: 'state' }); }
+    if (op === 'timer' && isHost && Number.isInteger(body.s) && body.s >= 0 && body.s <= 60) { room.timeLimit = body.s && body.s < 5 ? 5 : body.s; emit(room, { t: 'state' }); }
     if (op === 'start' && isHost && (!room.game || room.game.phase === 'over')) startGame(room);
     return send(res, 200, { ok: true });
   }
   // ----- game -----
   if (seat < 0) return send(res, 200, { ok: true });
+  wakeUp(room, seat);
   if (op === 'openroll') openRoll(room, seat);
   else if (op === 'roll') doRoll(room, seat);
   else if (op === 'move') doMove(room, seat, body.m);
