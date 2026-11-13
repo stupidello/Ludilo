@@ -46,7 +46,7 @@ function legal(G, p, r) {
     for (let k = Math.max(rel + 1, HOME0); k <= t; k++) if (ps.includes(k)) { ok = false; break; }
     if (ok) moves.push({ t: 'move', from: rel, to: t });
   }
-  if (r === 6) {
+  if (r === 6 && !(G.mineSafe && Object.values(G.mines).filter(o => o === p).length >= 2)) {   // 'safe' mine rule: at most 2 of your mines at once
     const seenA = new Set();
     for (const rel of ps) {
       if (rel < 0 || rel > 38) continue;
@@ -65,7 +65,7 @@ function land(G, p, i, fx) {
   if (G.mines[a] !== undefined) {
     const owner = G.mines[a];
     const guards = fieldPawnsAt(G, a).filter(v => v.p === owner && !(v.p === p && v.i === i));
-    if (owner === p && guards.length) { fx && fx({ t: 'log', m: 'Safe: your own pawn guards that mine.' }); return; }
+    if (owner === p && (G.mineSafe || guards.length)) { fx && fx({ t: 'log', m: 'Safe: your own pawn guards that mine.' }); return; }
     const victims = fieldPawnsAt(G, a);
     victims.forEach(v => G.pawns[v.p][v.i] = -1);
     delete G.mines[a];
@@ -78,7 +78,7 @@ function land(G, p, i, fx) {
 
 /* ============================== BOTS ============================== */
 const PV = rel => rel < 0 ? 0 : rel <= 38 ? 12 + rel : 62 + (rel - 38) * 2;
-const cloneState = st => ({ pawns: st.pawns.map(a => a.slice()), mines: { ...st.mines } });
+const cloneState = st => ({ pawns: st.pawns.map(a => a.slice()), mines: { ...st.mines }, mineSafe: !!st.mineSafe });
 function moverAt(st, p, m) {
   const c = cloneState(st); let oe = null;
   if (m.t === 'mine') c.mines[m.at] = p;
@@ -145,7 +145,7 @@ function createRoom(name) {
   const room = {
     code, theme: 'fantasy', game: null, seq: 0, events: [], waiters: [], busyUntil: 0, botTimer: null, lastActive: Date.now(),
     seats: FKEYS.map((f, i) => ({ token: null, name: '', bot: false, open: true, faction: f, c: PALETTE[i][1], lastSeen: 0 })),
-    hostToken: null, log: [], chat: [], chatId: 0, timeLimit: 0, turnTimer: null, timerKey: '', hints: false, swap: null, cool: {}, specs: {},
+    hostToken: null, log: [], chat: [], chatId: 0, timeLimit: 0, turnTimer: null, timerKey: '', hints: false, mineRule: 'classic', swap: null, cool: {}, specs: {},
   };
   rooms.set(code, room);
   const t = token(); room.hostToken = t;
@@ -161,12 +161,12 @@ function colorOf(room, i) { return room.theme === 'fantasy' ? FACTIONS[room.seat
 function publicState(room) {
   const G = room.game;
   return {
-    code: room.code, theme: room.theme, timeLimit: room.timeLimit, hints: !!room.hints, swap: room.swap && { from: room.swap.from, to: room.swap.to },
+    code: room.code, theme: room.theme, timeLimit: room.timeLimit, hints: !!room.hints, mineRule: room.mineRule === 'safe' ? 'safe' : 'classic', swap: room.swap && { from: room.swap.from, to: room.swap.to },
     seats: room.seats.map((s, i) => ({ name: seatName(room, i), bot: s.bot, open: s.open, human: !!s.token, faction: s.faction, c: colorOf(room, i), online: !!s.token && Date.now() - s.lastSeen < 15000 })),
     host: seatOf(room, room.hostToken),
     hostSpec: room.specs && room.specs[room.hostToken] ? room.specs[room.hostToken].name : null,
     specs: Object.values(room.specs || {}).filter(x => Date.now() - x.lastSeen < 40000).map(x => x.name),
-    game: G && { stats: G.stats, feed: (G.feed || []).slice(0, 100), elapsed: (G.endedAt || Date.now()) - (G.startedAt || Date.now()), auto: room.auto != null && room.auto === G.turnId, pawns: G.pawns, mines: G.mines, cur: G.cur, phase: G.phase, die: G.die, rollsLeft: G.rollsLeft, moves: G.phase === 'choose' ? G.moves : [], oe: G.oe, winner: G.winner, open: G.open },
+    game: G && { mineSafe: !!G.mineSafe, stats: G.stats, feed: (G.feed || []).slice(0, 100), elapsed: (G.endedAt || Date.now()) - (G.startedAt || Date.now()), auto: room.auto != null && room.auto === G.turnId, pawns: G.pawns, mines: G.mines, cur: G.cur, phase: G.phase, die: G.die, rollsLeft: G.rollsLeft, moves: G.phase === 'choose' ? G.moves : [], oe: G.oe, winner: G.winner, open: G.open },
     log: room.log.slice(0, 30),
     chat: room.chat.slice(-40),
   };
@@ -219,7 +219,7 @@ function emit(room, ev) {
 function startGame(room) {
   room.swap = null;
   room.seats.forEach(s => { if (!s.token) { s.bot = true; s.open = false; } });
-  room.game = newGame(); room.busyUntil = 0;
+  room.game = newGame(); room.busyUntil = 0; room.game.mineSafe = room.mineRule === 'safe';
   emit(room, { t: 'state', m: 'New game! Everyone rolls their own dice. Highest starts.' });
   tickBots(room);
 }
@@ -393,10 +393,11 @@ function rebuildRoom(code, snap) {
   (Array.isArray(snap.chat) ? snap.chat : []).slice(-40).forEach(m => {
     if (m && typeof m.text === 'string') room.chat.push({ id: ++room.chatId, ts: Number.isFinite(m.ts) ? m.ts : Date.now(), emote: !!m.emote, point: !!m.point, seat: Number.isInteger(m.seat) ? m.seat : -1, sys: !!m.sys, name: clean(m.name) || 'Player', c: typeof m.c === 'string' ? m.c.slice(0, 9) : '#9aa3b5', text: m.text.slice(0, 200) });
   });
+  room.mineRule = snap.mineRule === 'safe' ? 'safe' : 'classic';
   rooms.set(code, room);
   const g = snap.game;
   if (g) {
-    const G = newGame();
+    const G = newGame(); G.mineSafe = g.mineSafe === true;
     G.pawns = g.pawns.map(a => a.slice());
     for (const k in (g.mines || {})) { const a = +k, o = +g.mines[k]; if (Number.isInteger(a) && a >= 0 && a < N && [0, 1, 2].includes(o)) G.mines[a] = o; }
     G.cur = [0, 1, 2].includes(g.cur) ? g.cur : 0;
@@ -553,6 +554,7 @@ function handleApi(req, res, body) {
       const s = room.seats[target]; s.bot = !!body.bot; s.open = !s.bot; emit(room, { t: 'state' });
     }
     if (op === 'hints' && isHost) { room.hints = !!body.on; emit(room, { t: 'state' }); }
+    if (op === 'mrule' && isHost) { room.mineRule = body.r === 'safe' ? 'safe' : 'classic'; emit(room, { t: 'state' }); }
     if (op === 'take' && Number.isInteger(body.seat) && body.seat >= 0 && body.seat < 3 && body.seat !== seat) {   // sit in an open seat, or take over a bot
       const to = room.seats[body.seat];
       if (!to.token && (to.open || to.bot)) {

@@ -1141,7 +1141,7 @@ function showHome(err){
     <div class="or">— or join with a code —</div>
     <div class="row"><input id="code" placeholder="CODE" maxlength="4" value="${esc(want)}" style="text-transform:uppercase;letter-spacing:4px;font-weight:700"><button data-act="join">Join</button><button data-act="watchjoin" title="Join as a watcher">👀</button></div>
     <div class="err" id="err">${esc(err||'')}</div>
-    <div class="hint" style="text-align:right">v1.7</div>
+    <div class="hint" style="text-align:right">v1.8</div>
   </div>`;
 }
 async function enterRoom(code,token){
@@ -1598,6 +1598,7 @@ function moveTag(m){
   if(to>38) return 'home';
   const a=abs(ME,to);
   if(S.mines[a]!==undefined&&S.mines[a]!==ME) return 'mine!';
+  if(S.mines[a]===ME&&!(V.game&&V.game.mineSafe)&&!S.pawns[ME].some(r=>r>=0&&r<=38&&abs(ME,r)===a)) return 'mine!';
   if(S.pawns.some((ps,q)=>q!==ME&&ps.some(r=>r>=0&&r<=38&&abs(q,r)===a))) return 'kill';
   if(m.t==='enter') return 'bring out';
   if(isOE(a)) return 'odd/even';
@@ -1707,7 +1708,7 @@ function renderRoom(){
         <div class="racts">${act}${toggle}</div></div></div>`;
   }).join('');
   const humans=PLAYERS.filter(x=>x.human).length,openN=PLAYERS.filter(x=>!x.human&&!x.bot).length;
-  const summary=(fan?'Fantasy':'Classic')+' · '+(V.timeLimit?V.timeLimit+' s turns':'no timer')+(V.hints?' · hints':'');
+  const summary=(fan?'Fantasy':'Classic')+' · '+(V.timeLimit?V.timeLimit+' s turns':'no timer')+(V.hints?' · hints':'')+(V.mineRule==='safe'?' · safe mines':'');
   const startBtn=HOST?`<button class="rstart" data-act="start">${V.game?'Start new game':'Start game'}</button>`:`<div class="rwait">Waiting for the host to start…</div>`;
   el.innerHTML=`<div class="rm">
     <div class="rtop"><button class="tb" data-ui="lobby">‹<span class="lbl"> Back to lobby</span></button><div class="brand">Ludilo</div>
@@ -1899,6 +1900,8 @@ function renderDesign(){
     <div class="hint">Fantasy: pick a faction. Classic: pick a seat and a colour.</div>
     <label>Turn timer<b id="tval">${V&&V.timeLimit?V.timeLimit+' s':'Off'}</b></label><input class="tslider" type="range" min="0" max="60" step="5" value="${V&&V.timeLimit||0}" data-timer ${dis}>
     <div class="hint">When time runs out, autopilot plays for that player until they tap.</div>
+    <label>Mines</label><div class="seg"><button data-dact="mrule" data-r="classic" class="${V&&V.mineRule==='safe'?'':'on'}" ${dis}>Classic</button><button data-dact="mrule" data-r="safe" class="${V&&V.mineRule==='safe'?'on':''}" ${dis}>Safe for you · max 2</button></div>
+    <div class="hint">${V&&V.mineRule==='safe'?'Your own pawns never set off your own mines. You can have at most 2 mines on the board at once.':'Your own mine only spares your pawn if another of your pawns stands on it.'}</div>
     <label>Move hints</label><div class="seg"><button data-dact="hints" data-on="0" class="${V&&V.hints?'':'on'}" ${dis}>Off</button><button data-dact="hints" data-on="1" class="${V&&V.hints?'on':''}" ${dis}>On</button></div>
     <div class="hint">On: pawn buttons show what a move does (kill, home, odds/evens, mine).</div>
     <div class="hint" style="border-top:1px solid var(--line);padding-top:8px">${HOST?(run?'You can change these between games.':'Only the host can change these.'):'Only the host can change these.'}</div>
@@ -1914,7 +1917,7 @@ function renderDesign(){
   if(sTab==='rules') h+=`<div class="rules"><p><b>Start:</b> everyone rolls once, highest goes first. A 6 brings a pawn out (in order 1, 2, 3, 4) and always rolls again. With no pawns on the field and a tidy home lane you get 3 tries at the start of your turn.</p>
     <p><b>Moving:</b> you must move if you can. Pawns stack; landing on enemies sends them all back to the bench.</p>
     <p><b>Odds or evens</b> (dice tiles): call it, roll, and move forward if right, back if wrong. Only a 6 on that roll gives another roll.</p>
-    <p><b>Mines:</b> with a 6 you may plant a mine under one of your field pawns instead of moving (optional). Enemies landing on it blow up everything there; your own pawns are safe while one of them stands on it.</p>
+    <p><b>Mines:</b> with a 6 you may plant a mine under one of your field pawns instead of moving (optional). Enemies landing on it blow up everything there; your own pawns are safe while one of them stands on it.${V&&(V.game?V.game.mineSafe:V.mineRule==='safe')?' <b>This room uses safe mines:</b> your own pawns never set off your own mines, and you can have at most 2 on the board.':''}</p>
     <p><b>Home:</b> 4 steps; no overshooting, no jumping inside. First with all 4 home wins.</p></div>`;
   el.innerHTML=h;
   if(sTab==='opts'&&UI.sqr){const q=document.getElementById('sqrbox');const lb=document.getElementById('linkbox');if(q&&lb&&window.QRCode)new QRCode(q,{text:lb.value,width:170,height:170,correctLevel:QRCode.CorrectLevel.M});}
@@ -1929,6 +1932,7 @@ document.addEventListener('input',e=>{const k=e.target.dataset&&e.target.dataset
 document.addEventListener('click',async e=>{const b=e.target.closest('[data-dact]');if(!b)return;const a=b.dataset.dact;
   if(a==='toggle'){const p=document.getElementById('dpanel');if(b.dataset.stab&&!p.classList.contains('open')){sTab=b.dataset.stab;}p.classList.toggle('open');if(p.classList.contains('open'))renderDesign();}
   if(a==='hints'){api({op:'hints',on:b.dataset.on==='1'});}
+  if(a==='mrule'){api({op:'mrule',r:b.dataset.r});}
   if(a==='sqr'){UI.sqr=!UI.sqr;renderDesign();}
   if(a==='invite'){const lb=document.getElementById('linkbox');const url=lb?lb.value:location.href;
     if(navigator.share&&isPhone()){navigator.share({title:'Ludilo',text:'Come play Ludilo with me! Room '+(V?V.code:''),url}).catch(()=>{});}
