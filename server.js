@@ -164,8 +164,9 @@ function publicState(room) {
     code: room.code, theme: room.theme, timeLimit: room.timeLimit, hints: !!room.hints, swap: room.swap && { from: room.swap.from, to: room.swap.to },
     seats: room.seats.map((s, i) => ({ name: seatName(room, i), bot: s.bot, open: s.open, human: !!s.token, faction: s.faction, c: colorOf(room, i), online: !!s.token && Date.now() - s.lastSeen < 15000 })),
     host: seatOf(room, room.hostToken),
+    hostSpec: room.specs && room.specs[room.hostToken] ? room.specs[room.hostToken].name : null,
     specs: Object.values(room.specs || {}).filter(x => Date.now() - x.lastSeen < 40000).map(x => x.name),
-    game: G && { stats: G.stats, feed: (G.feed || []).slice(0, 40), elapsed: (G.endedAt || Date.now()) - (G.startedAt || Date.now()), auto: room.auto != null && room.auto === G.turnId, pawns: G.pawns, mines: G.mines, cur: G.cur, phase: G.phase, die: G.die, rollsLeft: G.rollsLeft, moves: G.phase === 'choose' ? G.moves : [], oe: G.oe, winner: G.winner, open: G.open },
+    game: G && { stats: G.stats, feed: (G.feed || []).slice(0, 100), elapsed: (G.endedAt || Date.now()) - (G.startedAt || Date.now()), auto: room.auto != null && room.auto === G.turnId, pawns: G.pawns, mines: G.mines, cur: G.cur, phase: G.phase, die: G.die, rollsLeft: G.rollsLeft, moves: G.phase === 'choose' ? G.moves : [], oe: G.oe, winner: G.winner, open: G.open },
     log: room.log.slice(0, 30),
     chat: room.chat.slice(-40),
   };
@@ -187,7 +188,10 @@ function feedAdd(room, ev) {
   else if (ev.t === 'capture') e = { k: 'cap', p: ev.p, vic: ev.vic };
   else if (ev.t === 'boom') e = { k: 'boom', o: ev.owner, vic: ev.vic };
   else if (ev.win != null) e = { k: 'win', p: ev.win };
-  if (e) { e.t = Date.now(); G.feed = [e, ...(G.feed || [])].slice(0, 60); }
+  else if (ev.t === 'hop' && ev.from < 0) e = { k: 'out', p: ev.p, i: ev.i };
+  else if (ev.t === 'hop' && ev.path && ev.path.length) e = { k: 'mv', p: ev.p, i: ev.i, n: ev.path.length, ...(ev.path[ev.path.length - 1] < ev.from ? { b: 1 } : {}) };
+  else if (ev.planted != null) e = { k: 'mine', p: ev.planted };
+  if (e) { e.t = Date.now(); G.feed = [e, ...(G.feed || [])].slice(0, 100); }
   const st = G.stats || (G.stats = newStats());
   if (ev.t === 'roll' && ev.v >= 1 && ev.v <= 6) {
     st.rolls[ev.p][ev.v - 1]++;
@@ -407,8 +411,8 @@ function rebuildRoom(code, snap) {
     if (Number.isFinite(g.elapsed) && g.elapsed >= 0) G.startedAt = Date.now() - g.elapsed;
     const okP = x => [0, 1, 2].includes(x), okV = v => v && typeof v === 'object' && Object.keys(v).every(k => okP(+k) && Number.isInteger(v[k]) && v[k] > 0 && v[k] < 13);
     G.feed = (Array.isArray(g.feed) ? g.feed : []).filter(e => e && Number.isFinite(e.t) && (
-      (e.k === 'roll' && okP(e.p) && e.v >= 1 && e.v <= 6) || (e.k === 'cap' && okP(e.p) && okV(e.vic)) || (e.k === 'boom' && okP(e.o) && okV(e.vic)) || (e.k === 'win' && okP(e.p))))
-      .slice(0, 40).map(e => ({ k: e.k, t: e.t, p: e.p, o: e.o, v: e.v, vic: e.vic, g: e.g === 'odd' || e.g === 'even' ? e.g : undefined, ok: !!e.ok }));
+      (e.k === 'roll' && okP(e.p) && e.v >= 1 && e.v <= 6) || (e.k === 'cap' && okP(e.p) && okV(e.vic)) || (e.k === 'boom' && okP(e.o) && okV(e.vic)) || (e.k === 'win' && okP(e.p)) || (e.k === 'out' && okP(e.p)) || (e.k === 'mine' && okP(e.p)) || (e.k === 'mv' && okP(e.p) && Number.isInteger(e.n) && e.n > 0 && e.n < 60)))
+      .slice(0, 100).map(e => ({ k: e.k, t: e.t, p: e.p, o: e.o, v: e.v, vic: e.vic, g: e.g === 'odd' || e.g === 'even' ? e.g : undefined, ok: !!e.ok, i: [0, 1, 2, 3].includes(e.i) ? e.i : undefined, n: e.n, b: e.b ? 1 : undefined }));
     const st = g.stats, num = x => Number.isInteger(x) && x >= 0 && x < 1e5;
     if (st && typeof st === 'object') {
       const ok3 = a => Array.isArray(a) && a.length === 3 && a.every(num), ok33 = a => Array.isArray(a) && a.length === 3 && a.every(ok3);
@@ -483,7 +487,7 @@ function handleApi(req, res, body) {
   if (op === 'join') {
     if (seat >= 0) return send(res, 200, { room: room.code, token: t });           // already in (page reload)
     if (spec) return send(res, 200, { room: room.code, token: t, spectator: true });
-    const free = room.game && room.game.phase !== 'over' ? -1 : room.seats.findIndex(s => s.open && !s.token);
+    const free = body.watch || (room.game && room.game.phase !== 'over') ? -1 : room.seats.findIndex(s => s.open && !s.token);
     const tk = token();
     if (free < 0) {                      // nothing free (or a game is running): come in as a spectator
       const used = new Set([...room.seats.map((x, i) => seatName(room, i)), ...Object.values(room.specs).map(x => x.name)]);
@@ -498,7 +502,9 @@ function handleApi(req, res, body) {
     emit(room, { t: 'state', m: `${seatName(room, free)} joined.` });
     return send(res, 200, { room: room.code, token: tk });
   }
-  if (op === 'leave' && spec) { delete room.specs[t]; chatMsg(room, -1, `${spec.name} stopped watching.`, true); emit(room, { t: 'state' }); return send(res, 200, { ok: true }); }
+  if (op === 'leave' && spec) { delete room.specs[t];
+    if (isHost) { const other = room.seats.find(x => x.token); room.hostToken = other ? other.token : (Object.keys(room.specs)[0] || null); }
+    chatMsg(room, -1, `${spec.name} stopped watching.`, true); emit(room, { t: 'state' }); return send(res, 200, { ok: true }); }
   if (op === 'sit' && spec && room.game && room.game.phase !== 'over') {   // a spectator takes over a bot in the middle of a game
     const i = body.seat, s = room.seats[i];
     if (![0, 1, 2].includes(i) || !s.bot || s.token) return send(res, 200, { ok: false });
@@ -512,11 +518,19 @@ function handleApi(req, res, body) {
     tickBots(room);
     return send(res, 200, { ok: true });
   }
+  if (op === 'watch' && seat >= 0 && (!room.game || room.game.phase === 'over')) {   // give up the seat, stay in the room as a watcher
+    const s = room.seats[seat], n = s.name || seatName(room, seat) || 'Player';
+    s.token = null; s.open = true; s.name = '';
+    if (room.swap && (room.swap.from === seat || room.swap.to === seat)) room.swap = null;
+    room.specs[t] = { name: n, lastSeen: Date.now() };
+    chatMsg(room, -1, `${n} is watching now. 👀`, true);
+    emit(room, { t: 'state' }); return send(res, 200, { ok: true });
+  }
   if (op === 'leave' && seat >= 0 && (!room.game || room.game.phase === 'over')) {
     const s = room.seats[seat]; s.token = null; s.open = true; s.name = '';
     if (room.swap && (room.swap.from === seat || room.swap.to === seat)) room.swap = null;
     chatMsg(room, -1, `${seatName(room, seat) || 'A player'} left the room.`, true);
-    if (isHost) { const other = room.seats.find(x => x.token); room.hostToken = other ? other.token : null; }
+    if (isHost) { const other = room.seats.find(x => x.token); room.hostToken = other ? other.token : (Object.keys(room.specs || {})[0] || null); }
     emit(room, { t: 'state' }); return send(res, 200, { ok: true });
   }
   // ----- lobby -----

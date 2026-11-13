@@ -375,9 +375,12 @@
   .dchip{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 14px;border-radius:999px;border:2px solid #3a4256;background:transparent;font-size:13px;font-weight:600}
   .dchip.on{background:#3a4256;border-color:#e9ecf2;outline:0}.dchip i{width:10px;height:10px;border-radius:50%}
   .dsub{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}.dsub span{color:var(--muted);font-size:13px}
-  .bars{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:18px;align-items:end;height:230px;border-bottom:1px solid #4a5266;padding:0 4px}
-  .bar{height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px}
-  .bn{font-size:12px;font-weight:700;color:#cfd5e3}.bb{width:100%;border-radius:4px 4px 0 0;min-height:2px}
+  .bars{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:18px;align-items:end;height:200px;border-bottom:1px solid #4a5266;padding:0 4px}
+  .bar{height:100%;box-sizing:border-box;padding-top:36px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center}
+  .bn{font-size:12px;font-weight:700;color:#cfd5e3}.bb{position:relative;flex:none;width:100%;border-radius:4px 4px 0 0;min-height:2px}
+  .bb .bn{position:absolute;top:7px;left:50%;transform:translateX(-50%);white-space:nowrap;text-align:center;line-height:1.25;color:#0e1116;font-weight:800}
+  .bb .bn small{color:rgba(14,17,22,.72)!important;font-weight:700}
+  .bb.out .bn{top:auto;bottom:100%;margin-bottom:5px;color:#cfd5e3}.bb.out .bn small{color:var(--muted)!important;font-weight:500}
   .bars.faces{height:auto;border:0;justify-items:center}
   .dface{width:30px;height:30px;box-sizing:border-box;padding:5px;border-radius:7px;background:#f4f4f4;box-shadow:inset 0 -2px 0 #c9ccd3;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);place-items:center}
   .dface i{width:5px;height:5px;border-radius:50%}.dface i.on{background:#14171f}
@@ -494,7 +497,7 @@
     .ebtns{grid-template-columns:1fr 1fr}
     .ebtns [data-ui=again]{grid-column:1 / -1;order:-1}
     .kcards{grid-template-columns:1fr}
-    .bars{gap:8px;height:160px}
+    .bars{gap:8px;height:200px}
     .orow{grid-template-columns:minmax(0,1.5fr) repeat(3,minmax(0,1fr))}.orow .ot{display:none}
     .oh small{display:none}
     .stabs .stab{flex:1;padding:0 6px;font-size:13px}
@@ -541,7 +544,28 @@
 
   /* ===================== v1.6 ===================== */
   .specn{font-weight:700;font-size:13px;color:#cfd5e3}
+  .rwatchb{margin-left:auto;height:34px;padding:0 12px;border-radius:10px;font-size:13px;font-weight:700;white-space:nowrap}
+  .rhint{align-items:center}
+  .codebox button{white-space:nowrap}
+  @media (max-width:600px){.codebox .lk{display:none}}
   .chip.spec{min-width:96px}
+  /* phone game log sheet */
+  .lsheet{display:none}
+  .llarr{margin-left:auto;color:var(--muted);font-size:14px;padding-left:6px}
+  #lastline{cursor:pointer}
+  @media (max-width:600px){
+    .lsheet.open{display:flex;position:fixed;left:0;right:0;top:0;bottom:var(--gbh,64px);z-index:45;background:rgba(8,10,14,.5);align-items:flex-end}
+    .lsheet-in{width:100%;height:min(560px,72%);background:#1b1f29;border:1px solid #2c3240;border-bottom:0;border-radius:20px 20px 0 0;box-shadow:0 -12px 30px rgba(0,0,0,.55);display:flex;flex-direction:column;animation:lup .2s ease-out}
+    @keyframes lup{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
+    .lgrab{align-self:center;width:44px;height:5px;border-radius:3px;background:#4a5266;margin:8px 0 4px}
+    .lhead{display:flex;align-items:center;gap:8px;padding:2px 12px 8px}.lhead b{font-size:16px}.lhead>span{color:var(--muted);font-size:12px}
+    .lfil{margin-left:auto;display:flex;gap:6px}.lfil button{height:30px;padding:0 10px;border-radius:999px;font-size:12px;font-weight:700;background:transparent;border:1px solid #353b4a}
+    .lfil button.on{background:#3a4256;border-color:#e9ecf2}
+    .lbody{flex:1;overflow-y:auto;padding:0 10px 12px;display:flex;flex-direction:column;gap:8px}
+    .lturn{border-left:3px solid var(--c);padding-left:6px;display:flex;flex-direction:column;gap:2px}
+    .lturn .fe{font-size:14px;padding:5px 6px}
+    .lempty{color:var(--muted);text-align:center;padding:30px}
+  }
   .chip .cr svg.mini{width:22px;height:22px;flex:none;filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))}
   @media (max-width:600px){.chip .cr{gap:4px}.chip .cr svg.mini{width:18px;height:18px}.chip .cr img{width:20px;height:20px}}
   /* ROLL matches the pawn buttons: bright border, darker fill */
@@ -1113,11 +1137,11 @@ function showHome(err){
     <h1>Ludilo</h1>
     <div class="hint">Ludo with landmines and odds or evens. Play with friends online; bots fill any empty seat.</div>
     <input id="name" placeholder="Your name" maxlength="14" value="${esc(name)}">
-    ${want?`<button class="primary" data-act="join">Join room ${esc(want)}</button>`:`<button class="primary" data-act="create">Create a room</button>`}
+    ${want?`<button class="primary" data-act="join">Join room ${esc(want)}</button><button data-act="watchjoin">👀 Just watch</button>`:`<button class="primary" data-act="create">Create a room</button>`}
     <div class="or">— or join with a code —</div>
-    <div class="row"><input id="code" placeholder="CODE" maxlength="4" value="${esc(want)}" style="text-transform:uppercase;letter-spacing:4px;font-weight:700"><button data-act="join">Join</button></div>
+    <div class="row"><input id="code" placeholder="CODE" maxlength="4" value="${esc(want)}" style="text-transform:uppercase;letter-spacing:4px;font-weight:700"><button data-act="join">Join</button><button data-act="watchjoin" title="Join as a watcher">👀</button></div>
     <div class="err" id="err">${esc(err||'')}</div>
-    <div class="hint" style="text-align:right">v1.6</div>
+    <div class="hint" style="text-align:right">v1.7</div>
   </div>`;
 }
 async function enterRoom(code,token){
@@ -1264,6 +1288,9 @@ function feedHTML(f){
     else if(e.k==='cap') b=`${fchip(e.p)}<span class="fico">⚔️</span>${fvic(e.vic)}`;
     else if(e.k==='boom') b=`<span class="fico">💥</span>${fchip(e.o)}<span class="fico">💀</span>${fvic(e.vic)}`;
     else if(e.k==='win') b=`<span class="fico">🏆</span>${fchip(e.p)}<b>wins!</b>`;
+    else if(e.k==='out') b=`${fchip(e.p)}<span class="fsub">brought pawn ${(e.i|0)+1} out</span>`;
+    else if(e.k==='mv') b=`${fchip(e.p)}<span class="fsub">${e.b?'◀ ':''}pawn ${(e.i|0)+1} · ${e.b?'back ':''}${e.n} step${e.n>1?'s':''}</span>`;
+    else if(e.k==='mine') b=`${fchip(e.p)}<span class="fico">💣</span><span class="fsub">planted a mine</span>`;
     return `<div class="fe fe-${e.k}">${b}<span class="ft">${tm}</span></div>`;}).join('')+`</div>`;
 }
 const PMINB='<button class="pminb" data-pmin="1" title="Hide this panel">–</button>';
@@ -1310,15 +1337,16 @@ function renderPanel(){
 document.addEventListener('click',async e=>{
   const el=e.target.closest('[data-act]');if(!el)return;
   const act=el.dataset.act;
-  if(act==='create'||act==='join'){
+  if(act==='create'||act==='join'||act==='watchjoin'){
     const name=(document.getElementById('name').value||'').trim();try{localStorage.setItem('ludo:name',name);}catch(e){}
     if(act==='create'){const j=await (await fetch('/api',{method:'POST',body:JSON.stringify({op:'create',name})})).json();return enterRoom(j.room,j.token);}
     const code=(document.getElementById('code').value||'').trim().toUpperCase();
     if(code.length!==4){document.getElementById('err').textContent='Type the 4-letter room code.';return;}
-    const r=await fetch('/api',{method:'POST',body:JSON.stringify({op:'join',room:code,name,token:loadToken(code)})});const j=await r.json();
+    const r=await fetch('/api',{method:'POST',body:JSON.stringify({op:'join',room:code,name,token:loadToken(code),watch:act==='watchjoin'})});const j=await r.json();
     if(j.error){document.getElementById('err').textContent=j.error;return;}
     return enterRoom(j.room,j.token);
   }
+  if(act==='watchme'){return api({op:'watch'});}
   if(act==='copy'){const b=document.getElementById('linkbox');try{await navigator.clipboard.writeText(b.value);el.textContent='Copied!';}catch(err){b.select();}return;}
   if(act==='mute'){muted=!muted;try{localStorage.setItem('ludoMuted',muted?'1':'0')}catch(err){};render();return;}
   if(act==='leave'){await api({op:'leave'});try{localStorage.removeItem('ludo:'+NET.room);}catch(err){};location.href=location.pathname;return;}
@@ -1417,6 +1445,7 @@ async function enterRoom(code,token){
   </div>
   <div id="room" class="room"></div>
   <div id="tray" class="tray"><div class="emobar"></div></div>
+  <div id="logsheet" class="lsheet"><div class="lsheet-in"><div class="lgrab"></div><div class="lhead"><b>Game log</b><span>newest at the bottom</span><div class="lfil"><button data-ui="logf" data-f="all">All</button><button data-ui="logf" data-f="kills">⚔️💥 only</button></div></div><div class="lbody" id="lbody"></div></div></div>
   <div id="sheet" class="sheet"><div class="sheet-in"><div class="gh">💬 Chat<button class="x" data-ui="sheetx" aria-label="Close chat">✕</button></div><div class="msgs"></div><div class="emobar"></div>
     <form class="chatform"><input placeholder="Say something…" maxlength="200" autocomplete="off" aria-label="Message"><button>Send</button></form></div></div>
   <div id="endov" class="ov"></div><div id="statsov" class="ov"></div><div id="swapov" class="ov"></div>
@@ -1535,11 +1564,29 @@ function drawTimer(rem,limitMs,color,autoTxt){
 }
 
 /* ---------- game log ---------- */
+function renderLogSheet(){
+  const el=document.getElementById('lbody'),g=V&&V.game;if(!el)return;
+  document.querySelectorAll('[data-ui=logf]').forEach(x=>x.classList.toggle('on',x.dataset.f===(UI.logF||'all')));
+  let f=(g&&g.feed||[]).slice().reverse();
+  if(UI.logF==='kills') f=f.filter(e=>e.k==='cap'||e.k==='boom'||e.k==='win');
+  if(!f.length){el.innerHTML='<div class="lempty">Nothing yet.</div>';return;}
+  const groups=[];f.forEach(e=>{const who=e.k==='boom'?e.o:e.p,last=groups[groups.length-1];if(last&&last.p===who)last.e.push(e);else groups.push({p:who,e:[e]});});
+  const h=groups.map(gr=>`<div class="lturn feed" style="--c:${(PLAYERS[gr.p]||{}).c||'#888'}">${feedHTML(gr.e).replace('<div class="log feed">','').replace(/<\/div>$/,'')}</div>`).join('');
+  const atBottom=el.scrollHeight-el.scrollTop-el.clientHeight<40;
+  if(el.innerHTML!==h){el.innerHTML=h;if(atBottom||!el.dataset.once){el.scrollTop=el.scrollHeight;el.dataset.once='1';}}
+}
+function setLog(on){UI.logOpen=on;const s=document.getElementById('logsheet');if(!s)return;const gb=document.querySelector('.gbottom');if(gb)s.style.setProperty('--gbh',gb.offsetHeight+'px');s.classList.toggle('open',on);if(on){document.getElementById('lbody').dataset.once='';renderLogSheet();}renderLog();}
+document.addEventListener('click',e=>{
+  if(e.target.closest('#lastline')){if(!isPhone())return;setLog(!UI.logOpen);return;}
+  const ls=document.getElementById('logsheet');if(UI.logOpen&&ls&&e.target===ls)setLog(false);
+});
 function renderLog(){
   const g=V&&V.game,el=document.getElementById('log'),ll=document.getElementById('lastline');
   if(el){const h=g?feedHTML(g.feed):'';if(el.innerHTML!==h)el.innerHTML=h;}
-  if(ll){const f=g&&g.feed&&g.feed[0];let h='';
-    if(f){if(f.k==='roll')h=`${fchip(f.p)} rolled <span class="fdie">${f.v}</span>`;else if(f.k==='cap')h=`${fchip(f.p)} <span class="fico">⚔️</span> ${fvic(f.vic)}`;else if(f.k==='boom')h=`<span class="fico">💥</span>${fchip(f.o)} <span class="fico">💀</span> ${fvic(f.vic)}`;else if(f.k==='win')h=`<span class="fico">🏆</span>${fchip(f.p)} wins!`;}
+  if(UI.logOpen) renderLogSheet();
+  if(ll){const f=g&&g.feed&&g.feed.find(e=>e.k!=='mv'&&e.k!=='out');let h='';
+    if(f){if(f.k==='roll')h=`${fchip(f.p)} rolled <span class="fdie">${f.v}</span>`;else if(f.k==='cap')h=`${fchip(f.p)} <span class="fico">⚔️</span> ${fvic(f.vic)}`;else if(f.k==='boom')h=`<span class="fico">💥</span>${fchip(f.o)} <span class="fico">💀</span> ${fvic(f.vic)}`;else if(f.k==='win')h=`<span class="fico">🏆</span>${fchip(f.p)} wins!`;else if(f.k==='mine')h=`${fchip(f.p)} <span class="fico">💣</span> planted a mine`;}
+    if(h)h+=`<span class="llarr">${UI.logOpen?'▾':'▴'}</span>`;
     if(ll.innerHTML!==h)ll.innerHTML=h;}
 }
 
@@ -1664,13 +1711,13 @@ function renderRoom(){
   const startBtn=HOST?`<button class="rstart" data-act="start">${V.game?'Start new game':'Start game'}</button>`:`<div class="rwait">Waiting for the host to start…</div>`;
   el.innerHTML=`<div class="rm">
     <div class="rtop"><button class="tb" data-ui="lobby">‹<span class="lbl"> Back to lobby</span></button><div class="brand">Ludilo</div>
-      <div class="codebox"><div><small>Room code</small><b>${esc(V.code)}</b></div><button data-ui="copy">Copy link</button><button data-ui="qr">QR</button></div>
+      <div class="codebox"><div><small>Room code</small><b>${esc(V.code)}</b></div><button data-ui="copy">Copy<span class="lk"> link</span></button><button data-ui="qr">QR</button></div>
       <button class="tb" data-dact="toggle" data-stab="opts" aria-label="Settings">⚙️<span class="lbl"> Settings</span></button></div>
     ${UI.qr?`<div class="qrpop"><div id="qr"></div><div class="hint">Scan to join room ${esc(V.code)}</div><button data-ui="qr">Close</button></div>`:''}
     <div class="rmain"><div class="rleft">
-      <div class="rhint"><b>${ME<0?'👀 You\'re watching':fan?'Choose your faction':'Choose your seat and colour'}</b><span>${ME<0?'Take a free or bot seat to play.':'⇄ Taken? Ask that player to swap.'}</span></div>
+      <div class="rhint"><b>${ME<0?'👀 You\'re watching'+(HOST?' · you\'re the host':''):fan?'Choose your faction':'Choose your seat and colour'}</b><span>${ME<0?'Take a free or bot seat to play.':'⇄ Taken? Ask that player to swap.'}</span>${ME>=0?'<button class="rwatchb" data-act="watchme">👀 Watch instead</button>':''}</div>
       <div class="rcards">${cards}</div>
-      <div class="rbar"><button class="rchip" data-dact="toggle" data-stab="opts">${esc(summary)}</button><span class="rready">${humans} player${humans===1?'':'s'}${openN?' · open seats become bots':''}${V.specs&&V.specs.length?' · 👀 '+V.specs.length+' watching':''}</span>${startBtn}</div>
+      <div class="rbar"><button class="rchip" data-dact="toggle" data-stab="opts">${esc(summary)}</button><span class="rready">${humans} player${humans===1?'':'s'}${openN?' · open seats become bots':''}${V.specs&&V.specs.length?' · 👀 '+V.specs.map(n=>esc(n)+(n===V.hostSpec?' (host)':'')).join(', ')+' watching':''}</span>${startBtn}</div>
       <div class="rphone"><button class="tb rchatb" data-ui="sheet" aria-label="Chat">💬<span class="badge" id="badge2"></span></button>${startBtn}</div>
     </div>
     <div class="rchat chatbox"><div class="gh">💬 Room chat</div><div class="msgs"></div><div class="emobar"></div>
@@ -1756,7 +1803,7 @@ function renderStats(){
     const tot=sum(counts),mx=Math.max(1,...counts),avg=tot?(counts.reduce((a,n,i)=>a+n*(i+1),0)/tot).toFixed(2):'–',col=sel==='all'?'#9aa3b5':PLAYERS[+sel].c;
     const chips=[['all','All players','#9aa3b5'],...P.map(p=>[String(p),nmx(p),PLAYERS[p].c])].map(([k,n,c])=>`<button class="dchip${UI.statDice===k?' on':''}" data-ui="sdice" data-k="${k}"><i style="background:${c}"></i>${esc(n)}</button>`).join('');
     body=`<div class="dchips">${chips}<button class="faceswitch" data-ui="faces">${UI.diceFaces?'Show numbers':'Show dice'}</button></div><div class="dsub"><b>${sel==='all'?'All players':esc(nmx(+sel))+' · '+esc(PLAYERS[+sel].name)}</b><span>${tot} rolls · average ${avg}</span></div>
-      <div class="bars">${counts.map((n,i)=>`<div class="bar" title="${i+1}: ${n} rolls (${tot?Math.round(n/tot*100):0}%)"><span class="bn">${n}<small>${tot?Math.round(n/tot*100):0}%</small></span><span class="bb" style="height:${Math.round(n/mx*100)}%;background:${col}"></span></div>`).join('')}</div>
+      <div class="bars">${counts.map((n,i)=>`<div class="bar" title="${i+1}: ${n} rolls (${tot?Math.round(n/tot*100):0}%)"><span class="bb${n/mx<.25?' out':''}" style="height:${(n/mx*100).toFixed(1)}%;background:${col}"><span class="bn">${n}<small>${tot?Math.round(n/tot*100):0}%</small></span></span></div>`).join('')}</div>
       <div class="bars faces">${[1,2,3,4,5,6].map(n=>UI.diceFaces?dieFace(n):`<span class="fnum">${n}</span>`).join('')}</div>`;
   } else {
     const chip=(q,n,mine)=>`<span class="kchip" title="${mine?'by mine: ':''}${esc(nmx(q))} ×${n}">${portrait(q,30)}${mine?'<span class="mi">💣</span>':''}<b>×${n}</b></span>`;
@@ -1799,7 +1846,8 @@ document.addEventListener('click',async e=>{
   if(k==='pointx'){UI.pointMode=false;render();return;}
   if(k==='pointat'){UI.pointMode=false;UI.lastPoint=Date.now();api({op:'point',p:+b.dataset.p,i:+b.dataset.i});render();return;}
   if(k==='tray'){UI.tray=!UI.tray;document.getElementById('tray').classList.toggle('open',UI.tray);renderEmoBars();return;}
-  if(k==='sheet'){UI.sheet=true;UI.tray=false;document.getElementById('tray').classList.remove('open');document.getElementById('sheet').classList.add('open');lastChatKey='';renderChat(V&&V.chat);renderEmoBars();
+  if(k==='logf'){UI.logF=b.dataset.f;renderLogSheet();return;}
+  if(k==='sheet'){if(UI.logOpen)setLog(false);UI.sheet=true;UI.tray=false;document.getElementById('tray').classList.remove('open');document.getElementById('sheet').classList.add('open');lastChatKey='';renderChat(V&&V.chat);renderEmoBars();
     const m=document.querySelector('#sheet .msgs');if(m)m.scrollTop=m.scrollHeight;return;}
   if(k==='sheetx'){closeSheet();return;}
   if(k==='stats'){if(statsOf()){UI.stats=true;UI.statTab=UI.statTab||'overview';render();}return;}
@@ -1814,7 +1862,7 @@ document.addEventListener('click',async e=>{
   if(k==='swapask'){api({op:'swapask',seat:+b.dataset.seat});return;}
   if(k==='swapcancel'){api({op:'swapcancel'});return;}
   if(k==='swapyes'||k==='swapno'){api({op:'swapans',ok:k==='swapyes'});return;}
-  if(k==='copy'){const box=document.getElementById('linkbox');try{await navigator.clipboard.writeText(box.value);b.textContent='Copied!';}catch(err){box.select();document.execCommand&&document.execCommand('copy');b.textContent='Copied!';}setTimeout(()=>{b.textContent='Copy link';},1500);return;}
+  if(k==='copy'){const box=document.getElementById('linkbox');try{await navigator.clipboard.writeText(box.value);b.textContent='Copied!';}catch(err){box.select();document.execCommand&&document.execCommand('copy');b.textContent='Copied!';}setTimeout(()=>{b.innerHTML='Copy<span class="lk"> link</span>';},1500);return;}
   if(k==='qr'){UI.qr=!UI.qr;renderRoom();return;}
   if(k==='lobby'){await api({op:'leave'});try{localStorage.removeItem('ludo:'+NET.room);}catch(err){};location.href=location.pathname;return;}
 });
