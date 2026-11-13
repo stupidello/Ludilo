@@ -17,11 +17,15 @@ const isOE = a => a % SEC === 6;                          // odds/evens: 6 steps
 const d6 = () => 1 + crypto.randomInt(6);
 const range = (a, b) => { const r = []; if (b >= a) for (let x = a; x <= b; x++) r.push(x); else for (let x = a; x >= b; x--) r.push(x); return r; };
 
+const z3 = () => [0, 0, 0];
+function newStats() {
+  return { rolls: [0, 1, 2].map(() => [0, 0, 0, 0, 0, 0]), steps: z3(), kills: [z3(), z3(), z3()], mineKills: [z3(), z3(), z3()], planted: z3(), oeRight: z3(), oeWrong: z3() };
+}
 function newGame() {
   return {
     pawns: [[-1, -1, -1, -1], [-1, -1, -1, -1], [-1, -1, -1, -1]], mines: {},
     cur: 0, phase: 'opening', die: null, rollsLeft: 0, bonus: false, moves: [], oe: null, winner: null,
-    open: { contenders: [0, 1, 2], vals: {}, done: false, winner: null }, startedAt: Date.now(), endedAt: null,
+    open: { contenders: [0, 1, 2], vals: {}, done: false, winner: null }, startedAt: Date.now(), endedAt: null, stats: newStats(),
   };
 }
 function fieldPawnsAt(G, a) { const r = []; G.pawns.forEach((ps, p) => ps.forEach((rel, i) => { if (rel >= 0 && rel <= 38 && abs(p, rel) === a) r.push({ p, i }); })); return r; }
@@ -141,7 +145,7 @@ function createRoom(name) {
   const room = {
     code, theme: 'fantasy', game: null, seq: 0, events: [], waiters: [], busyUntil: 0, botTimer: null, lastActive: Date.now(),
     seats: FKEYS.map((f, i) => ({ token: null, name: '', bot: false, open: true, faction: f, c: PALETTE[i][1], lastSeen: 0 })),
-    hostToken: null, log: [], chat: [], chatId: 0, timeLimit: 0, turnTimer: null, timerKey: '',
+    hostToken: null, log: [], chat: [], chatId: 0, timeLimit: 0, turnTimer: null, timerKey: '', hints: false, swap: null, cool: {},
   };
   rooms.set(code, room);
   const t = token(); room.hostToken = t;
@@ -157,17 +161,17 @@ function colorOf(room, i) { return room.theme === 'fantasy' ? FACTIONS[room.seat
 function publicState(room) {
   const G = room.game;
   return {
-    code: room.code, theme: room.theme, timeLimit: room.timeLimit,
+    code: room.code, theme: room.theme, timeLimit: room.timeLimit, hints: !!room.hints, swap: room.swap && { from: room.swap.from, to: room.swap.to },
     seats: room.seats.map((s, i) => ({ name: seatName(room, i), bot: s.bot, open: s.open, human: !!s.token, faction: s.faction, c: colorOf(room, i), online: !!s.token && Date.now() - s.lastSeen < 15000 })),
     host: seatOf(room, room.hostToken),
-    game: G && { feed: (G.feed || []).slice(0, 40), elapsed: (G.endedAt || Date.now()) - (G.startedAt || Date.now()), auto: room.auto != null && room.auto === G.turnId, pawns: G.pawns, mines: G.mines, cur: G.cur, phase: G.phase, die: G.die, rollsLeft: G.rollsLeft, moves: G.phase === 'choose' ? G.moves : [], oe: G.oe, winner: G.winner, open: G.open },
+    game: G && { stats: G.stats, feed: (G.feed || []).slice(0, 40), elapsed: (G.endedAt || Date.now()) - (G.startedAt || Date.now()), auto: room.auto != null && room.auto === G.turnId, pawns: G.pawns, mines: G.mines, cur: G.cur, phase: G.phase, die: G.die, rollsLeft: G.rollsLeft, moves: G.phase === 'choose' ? G.moves : [], oe: G.oe, winner: G.winner, open: G.open },
     log: room.log.slice(0, 30),
     chat: room.chat.slice(-40),
   };
 }
-function chatMsg(room, seat, text, sys) {
+function chatMsg(room, seat, text, sys, extra) {
   const c = seat >= 0 ? colorOf(room, seat) : '#9aa3b5';
-  room.chat.push({ id: ++room.chatId, seat, sys: !!sys, name: seat >= 0 ? seatName(room, seat) : 'Spectator', c, text: String(text).slice(0, 200) });
+  room.chat.push({ id: ++room.chatId, ts: Date.now(), seat, sys: !!sys, name: seat >= 0 ? seatName(room, seat) : 'Spectator', c, text: String(text).slice(0, 200), ...(extra || {}) });
   if (room.chat.length > 80) room.chat.splice(0, room.chat.length - 80);
 }
 function logMsg(room, m) { room.log.unshift(m); room.log = room.log.slice(0, 60); }
@@ -183,6 +187,15 @@ function feedAdd(room, ev) {
   else if (ev.t === 'boom') e = { k: 'boom', o: ev.owner, vic: ev.vic };
   else if (ev.win != null) e = { k: 'win', p: ev.win };
   if (e) { e.t = Date.now(); G.feed = [e, ...(G.feed || [])].slice(0, 60); }
+  const st = G.stats || (G.stats = newStats());
+  if (ev.t === 'roll' && ev.v >= 1 && ev.v <= 6) {
+    st.rolls[ev.p][ev.v - 1]++;
+    if (ev.kind === 'guess') ((ev.g === 'odd') === (ev.v % 2 === 1) ? st.oeRight : st.oeWrong)[ev.p]++;
+  }
+  if (ev.t === 'hop' && ev.from >= 0) st.steps[ev.p] += ev.path.length;
+  if (ev.t === 'capture') for (const q in ev.vic) st.kills[ev.p][q] += ev.vic[q];
+  if (ev.t === 'boom') for (const q in ev.vic) st.mineKills[ev.owner][q] += ev.vic[q];
+  if (ev.planted != null) st.planted[ev.planted]++;
 }
 function emit(room, ev) {
   if (ev.m) logMsg(room, ev.m);
@@ -199,6 +212,7 @@ function emit(room, ev) {
 
 /* ---------- game flow ---------- */
 function startGame(room) {
+  room.swap = null;
   room.seats.forEach(s => { if (!s.token) { s.bot = true; s.open = false; } });
   room.game = newGame(); room.busyUntil = 0;
   emit(room, { t: 'state', m: 'New game! Everyone rolls their own dice. Highest starts.' });
@@ -254,7 +268,7 @@ function doMove(room, p, want) {
   if (!m) return;
   G.moves = []; G.phase = 'anim';
   const fx = ev => emit(room, ev);
-  if (m.t === 'mine') { G.mines[m.at] = p; emit(room, { t: 'state', m: `${nm(room, p)} planted a landmine.`, sfx: 'mine' }); return afterAction(room); }
+  if (m.t === 'mine') { G.mines[m.at] = p; emit(room, { t: 'state', planted: p, m: `${nm(room, p)} planted a landmine.`, sfx: 'mine' }); return afterAction(room); }
   if (m.t === 'enter') {
     const i = G.pawns[p].indexOf(-1);                                  // pawns always come out in order 1, 2, 3, 4
     G.pawns[p][i] = 0; emit(room, { t: 'hop', p, i, from: -1, path: [0], m: `${nm(room, p)} brought pawn ${i + 1} out.` });
@@ -305,7 +319,7 @@ function armTimer(room) {
   if (room.timeLimit && G.phase !== 'over') {
     if (G.phase === 'opening' && !G.open.done) {
       if (G.open.contenders.some(q => !room.seats[q].bot && G.open.vals[q] == null)) key = 'open:' + G.open.contenders.join() + ':' + (room.treset || 0);
-    } else if (!room.seats[G.cur].bot && room.auto !== G.turnId) key = 'turn:' + G.turnId + ':' + (room.treset || 0);
+    } else if (!room.seats[G.cur].bot && !(room.auto != null && room.auto === G.turnId)) key = 'turn:' + G.turnId + ':' + (room.treset || 0);
   }
   if (key === room.timerKey) return;
   room.timerKey = key; clearTimeout(room.turnTimer); room.turnTimer = null;
@@ -323,7 +337,7 @@ function armTimer(room) {
 }
 function wakeUp(room, seat) {        // the player is back: stop the autopilot
   const G = room.game;
-  if (!G || seat !== G.cur || room.auto !== G.turnId) return;
+  if (!G || seat !== G.cur || room.auto == null || room.auto !== G.turnId) return;
   room.auto = null; room.treset = (room.treset || 0) + 1; clearTimeout(room.botTimer); room.botTimer = null;
   emit(room, { t: 'state', m: `${nm(room, seat)} took over again.` });
 }
@@ -334,7 +348,7 @@ function tickBots(room) {
   if (G.phase === 'opening' && !G.open.done) {
     const bp = G.open.contenders.find(q => room.seats[q].bot && G.open.vals[q] == null);
     if (bp !== undefined) { think = 500 + Math.random() * 500; act = () => openRoll(room, bp); }
-  } else if (room.seats[G.cur].bot || room.auto === G.turnId) {
+  } else if (room.seats[G.cur].bot || (room.auto != null && room.auto === G.turnId)) {
     if (G.phase === 'roll') act = () => doRoll(room, G.cur);
     else if (G.phase === 'choose') { think = 750; act = () => { const m = botPick(G); if (m) doMove(room, G.cur, m); else doRoll(room, G.cur); }; }
     else if (G.phase === 'guess') { think = 800; act = () => doGuess(room, G.cur, botGuess(G)); }
@@ -368,10 +382,11 @@ function rebuildRoom(code, snap) {
     }),
     hostToken: null, hostSeat: Number.isInteger(snap.host) ? snap.host : -1,
     log: (Array.isArray(snap.log) ? snap.log : []).filter(l => typeof l === 'string').slice(0, 60).map(l => l.slice(0, 200)),
+    hints: !!snap.hints, swap: null, cool: {},
     chat: [], chatId: 0, timeLimit: Number.isInteger(snap.timeLimit) && snap.timeLimit >= 0 && snap.timeLimit <= 60 ? snap.timeLimit : 0, turnTimer: null, timerKey: '',
   };
   (Array.isArray(snap.chat) ? snap.chat : []).slice(-40).forEach(m => {
-    if (m && typeof m.text === 'string') room.chat.push({ id: ++room.chatId, seat: Number.isInteger(m.seat) ? m.seat : -1, sys: !!m.sys, name: clean(m.name) || 'Player', c: typeof m.c === 'string' ? m.c.slice(0, 9) : '#9aa3b5', text: m.text.slice(0, 200) });
+    if (m && typeof m.text === 'string') room.chat.push({ id: ++room.chatId, ts: Number.isFinite(m.ts) ? m.ts : Date.now(), emote: !!m.emote, point: !!m.point, seat: Number.isInteger(m.seat) ? m.seat : -1, sys: !!m.sys, name: clean(m.name) || 'Player', c: typeof m.c === 'string' ? m.c.slice(0, 9) : '#9aa3b5', text: m.text.slice(0, 200) });
   });
   rooms.set(code, room);
   const g = snap.game;
@@ -393,6 +408,12 @@ function rebuildRoom(code, snap) {
     G.feed = (Array.isArray(g.feed) ? g.feed : []).filter(e => e && Number.isFinite(e.t) && (
       (e.k === 'roll' && okP(e.p) && e.v >= 1 && e.v <= 6) || (e.k === 'cap' && okP(e.p) && okV(e.vic)) || (e.k === 'boom' && okP(e.o) && okV(e.vic)) || (e.k === 'win' && okP(e.p))))
       .slice(0, 40).map(e => ({ k: e.k, t: e.t, p: e.p, o: e.o, v: e.v, vic: e.vic, g: e.g === 'odd' || e.g === 'even' ? e.g : undefined, ok: !!e.ok }));
+    const st = g.stats, num = x => Number.isInteger(x) && x >= 0 && x < 1e5;
+    if (st && typeof st === 'object') {
+      const ok3 = a => Array.isArray(a) && a.length === 3 && a.every(num), ok33 = a => Array.isArray(a) && a.length === 3 && a.every(ok3);
+      if (Array.isArray(st.rolls) && st.rolls.length === 3 && st.rolls.every(r => Array.isArray(r) && r.length === 6 && r.every(num)) && ['steps', 'planted', 'oeRight', 'oeWrong'].every(k => ok3(st[k])) && ok33(st.kills) && ok33(st.mineKills))
+        G.stats = { rolls: st.rolls, steps: st.steps, kills: st.kills, mineKills: st.mineKills, planted: st.planted, oeRight: st.oeRight, oeWrong: st.oeWrong };
+    }
     room.game = G;
     const ph = g.phase;
     if (ph === 'over' && G.winner !== null) G.phase = 'over';
@@ -441,9 +462,23 @@ function handleApi(req, res, body) {
     const text = String(body.text || '').trim(); if (!text) return send(res, 200, { ok: true });
     chatMsg(room, seat, text, false); emit(room, { t: 'chat' }); return send(res, 200, { ok: true });
   }
+  if (op === 'emote' && seat >= 0) {
+    const E = ['🙏', '😠', '😒', '⏳', '😂'];
+    if (!E.includes(body.e) || Date.now() - (room.cool['e' + seat] || 0) < 900) return send(res, 200, { ok: false });
+    room.cool['e' + seat] = Date.now();
+    chatMsg(room, seat, body.e, false, { emote: true }); emit(room, { t: 'emote', p: seat, e: body.e }); return send(res, 200, { ok: true });
+  }
+  if (op === 'point' && seat >= 0 && room.game && room.game.phase !== 'over') {
+    const q = body.p, i = body.i, G = room.game;
+    if (![0, 1, 2].includes(q) || ![0, 1, 2, 3].includes(i) || G.pawns[q][i] < 0 || Date.now() - (room.cool['p' + seat] || 0) < 4800) return send(res, 200, { ok: false });
+    room.cool['p' + seat] = Date.now();
+    const whose = q === seat ? 'their own pawn' : `${poss(room, q)} pawn`;
+    chatMsg(room, seat, `pointed at ${whose} ${i + 1}`, false, { point: true });
+    emit(room, { t: 'point', from: seat, p: q, i }); return send(res, 200, { ok: true });
+  }
   if (op === 'join') {
     if (seat >= 0) return send(res, 200, { room: room.code, token: t });           // already in (page reload)
-    const free = room.game ? -1 : room.seats.findIndex(s => s.open && !s.token);
+    const free = room.game && room.game.phase !== 'over' ? -1 : room.seats.findIndex(s => s.open && !s.token);
     const tk = token();
     if (free < 0) return send(res, 200, { room: room.code, token: tk, spectator: true });
     takeSeat(room, free, tk, body.name);
@@ -451,8 +486,10 @@ function handleApi(req, res, body) {
     emit(room, { t: 'state', m: `${seatName(room, free)} joined.` });
     return send(res, 200, { room: room.code, token: tk });
   }
-  if (op === 'leave' && seat >= 0 && !room.game) {
+  if (op === 'leave' && seat >= 0 && (!room.game || room.game.phase === 'over')) {
     const s = room.seats[seat]; s.token = null; s.open = true; s.name = '';
+    if (room.swap && (room.swap.from === seat || room.swap.to === seat)) room.swap = null;
+    chatMsg(room, -1, `${seatName(room, seat) || 'A player'} left the room.`, true);
     if (isHost) { const other = room.seats.find(x => x.token); room.hostToken = other ? other.token : null; }
     emit(room, { t: 'state' }); return send(res, 200, { ok: true });
   }
@@ -474,6 +511,33 @@ function handleApi(req, res, body) {
     }
     if (op === 'seat' && isHost && target >= 0 && !room.seats[target].token) {        // open seat <-> bot
       const s = room.seats[target]; s.bot = !!body.bot; s.open = !s.bot; emit(room, { t: 'state' });
+    }
+    if (op === 'hints' && isHost) { room.hints = !!body.on; emit(room, { t: 'state' }); }
+    if (op === 'take' && Number.isInteger(body.seat) && body.seat >= 0 && body.seat < 3 && body.seat !== seat) {   // sit in an open seat, or take over a bot
+      const to = room.seats[body.seat];
+      if (!to.token && (to.open || to.bot)) {
+        const wasBot = to.bot;
+        if (seat >= 0) { const fr = room.seats[seat]; to.token = fr.token; to.name = fr.name; to.lastSeen = fr.lastSeen; fr.token = null; fr.name = ''; fr.bot = wasBot; fr.open = !wasBot; }
+        else { to.token = t; to.name = clean(body.name); to.lastSeen = Date.now(); }
+        to.bot = false; to.open = false;
+        if (room.swap) room.swap = null;
+        emit(room, { t: 'state' });
+      }
+    }
+    if (op === 'swapask' && seat >= 0 && Number.isInteger(body.seat) && body.seat >= 0 && body.seat < 3 && body.seat !== seat && room.seats[body.seat].token && !room.swap) {
+      room.swap = { from: seat, to: body.seat, at: Date.now() };
+      chatMsg(room, -1, `${seatName(room, seat)} asked ${seatName(room, body.seat)} to swap places.`, true);
+      emit(room, { t: 'state' });
+      const sw = room.swap; setTimeout(() => { if (room.swap === sw) { room.swap = null; emit(room, { t: 'state' }); } }, 30000);
+    }
+    if (op === 'swapcancel' && room.swap && room.swap.from === seat) { room.swap = null; emit(room, { t: 'state' }); }
+    if (op === 'swapans' && room.swap && room.swap.to === seat) {
+      const a = room.seats[room.swap.from], b = room.seats[room.swap.to], an = seatName(room, room.swap.from), bn = seatName(room, room.swap.to);
+      if (body.ok) {
+        for (const k of ['token', 'name', 'lastSeen']) { const x = a[k]; a[k] = b[k]; b[k] = x; }
+        chatMsg(room, -1, `${bn} and ${an} swapped places.`, true);
+      } else chatMsg(room, -1, `${bn} said no to swapping.`, true);
+      room.swap = null; emit(room, { t: 'state' });
     }
     if (op === 'timer' && isHost && Number.isInteger(body.s) && body.s >= 0 && body.s <= 60) { room.timeLimit = body.s && body.s < 5 ? 5 : body.s; emit(room, { t: 'state' }); }
     if (op === 'start' && isHost && (!room.game || room.game.phase === 'over')) startGame(room);
