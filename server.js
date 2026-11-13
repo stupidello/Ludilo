@@ -383,7 +383,7 @@ function rebuildRoom(code, snap) {
     hostToken: null, hostSeat: Number.isInteger(snap.host) ? snap.host : -1,
     log: (Array.isArray(snap.log) ? snap.log : []).filter(l => typeof l === 'string').slice(0, 60).map(l => l.slice(0, 200)),
     hints: !!snap.hints, swap: null, cool: {},
-    chat: [], chatId: 0, timeLimit: Number.isInteger(snap.timeLimit) && snap.timeLimit >= 0 && snap.timeLimit <= 60 ? snap.timeLimit : 0, turnTimer: null, timerKey: '',
+    chat: [], chatId: 0, timeLimit: Number.isInteger(snap.timeLimit) && snap.timeLimit >= 0 && snap.timeLimit <= 60 ? (snap.timeLimit && snap.timeLimit < 10 ? 10 : snap.timeLimit) : 0, turnTimer: null, timerKey: '',
   };
   (Array.isArray(snap.chat) ? snap.chat : []).slice(-40).forEach(m => {
     if (m && typeof m.text === 'string') room.chat.push({ id: ++room.chatId, ts: Number.isFinite(m.ts) ? m.ts : Date.now(), emote: !!m.emote, point: !!m.point, seat: Number.isInteger(m.seat) ? m.seat : -1, sys: !!m.sys, name: clean(m.name) || 'Player', c: typeof m.c === 'string' ? m.c.slice(0, 9) : '#9aa3b5', text: m.text.slice(0, 200) });
@@ -539,13 +539,24 @@ function handleApi(req, res, body) {
       } else chatMsg(room, -1, `${bn} said no to swapping.`, true);
       room.swap = null; emit(room, { t: 'state' });
     }
-    if (op === 'timer' && isHost && Number.isInteger(body.s) && body.s >= 0 && body.s <= 60) { room.timeLimit = body.s && body.s < 5 ? 5 : body.s; emit(room, { t: 'state' }); }
+    if (op === 'timer' && isHost && Number.isInteger(body.s) && body.s >= 0 && body.s <= 60) { room.timeLimit = body.s && body.s < 10 ? 10 : body.s; emit(room, { t: 'state' }); }
     if (op === 'start' && isHost && (!room.game || room.game.phase === 'over')) startGame(room);
+    return send(res, 200, { ok: true });
+  }
+  if (op === 'restart') {               // host ends the game and everyone goes back to the room screen
+    if (isHost && room.game) {
+      clearTimeout(room.botTimer); room.botTimer = null; clearTimeout(room.turnTimer); room.turnTimer = null; room.timerKey = ''; room.auto = null;
+      room.game = null; room.busyUntil = 0;
+      chatMsg(room, -1, `${seatName(room, seat) || 'The host'} ended the game. Back to the room!`, true);
+      emit(room, { t: 'state', m: 'The host ended the game.' });
+    }
     return send(res, 200, { ok: true });
   }
   // ----- game -----
   if (seat < 0) return send(res, 200, { ok: true });
   wakeUp(room, seat);
+  const G0 = room.game;   // any input from the player whose turn it is restarts their turn timer
+  if (G0 && G0.phase !== 'over' && room.timeLimit && (seat === G0.cur || (G0.phase === 'opening' && !G0.open.done))) room.treset = (room.treset || 0) + 1;
   if (op === 'openroll') openRoll(room, seat);
   else if (op === 'roll') doRoll(room, seat);
   else if (op === 'move') doMove(room, seat, body.m);
