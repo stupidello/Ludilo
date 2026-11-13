@@ -538,6 +538,37 @@
   .faceswitch{margin-left:auto;height:36px;padding:0 12px;border-radius:999px;border:2px solid #3a4256;background:transparent;font-size:12px;font-weight:700}
   .fnum{width:30px;height:30px;border-radius:7px;background:#2a2f3d;border:2px solid #4a5266;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;box-sizing:border-box}
   .bn small{display:block;font-weight:500;color:var(--muted);font-size:10px;text-align:center}
+
+  /* ===================== v1.6 ===================== */
+  .specn{font-weight:700;font-size:13px;color:#cfd5e3}
+  .chip.spec{min-width:96px}
+  .chip .cr svg.mini{width:22px;height:22px;flex:none;filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))}
+  @media (max-width:600px){.chip .cr{gap:4px}.chip .cr svg.mini{width:18px;height:18px}.chip .cr img{width:20px;height:20px}}
+  /* ROLL matches the pawn buttons: bright border, darker fill */
+  #pad .big.roll{background:color-mix(in srgb,var(--pc) 30%,#14171f);color:#f1f4f9;border:2px solid var(--pc);box-shadow:0 0 0 3px color-mix(in srgb,var(--pc) 22%,transparent),0 6px 16px rgba(0,0,0,.4)}
+  #pad .big.roll:disabled{box-shadow:none}
+  .chip.spec .cr i{background:var(--c)}
+  /* phone room: the picked card is full width and glows, the others are a little narrower */
+  @media (max-width:600px){
+    .rcards{display:flex;flex-direction:column;align-items:center;gap:12px}
+    .rcard{width:90%;box-sizing:border-box;transition:width .25s,box-shadow .25s,border-color .25s}
+    .rcard.mine{width:100%;box-shadow:0 0 0 4px color-mix(in srgb,var(--c) 25%,transparent),0 0 30px color-mix(in srgb,var(--c) 45%,transparent)}
+  }
+  /* PC: buttons beside the board, above the chat */
+  .gact{display:none}
+  @media (min-width:601px){
+    .gright{flex-direction:column;gap:10px}
+    .gact{display:flex;flex-direction:column;gap:8px;flex:none;min-height:232px;box-sizing:border-box;background:var(--panel);border:2px solid #2c3240;border-radius:16px;padding:12px;transition:border-color .2s,box-shadow .2s}
+    .gact:has(.tpill.me){border-color:var(--myc,#3fb950);box-shadow:0 0 24px color-mix(in srgb,var(--myc,#3fb950) 25%,transparent)}
+    .gact #turnpill .tpill{display:flex;width:100%;box-sizing:border-box;justify-content:center;border-radius:12px;text-align:center}
+    .gact #pad{height:auto;max-width:none;flex:1;justify-content:flex-start}
+    .gact .padhint{white-space:normal;height:auto;min-height:18px}
+    .gact .actrow{height:auto;flex-wrap:wrap}
+    .gact .actrow .chips{flex-wrap:wrap}
+    .gact .rollrow{display:flex!important}
+    .gact .chip{min-width:80px}
+    .gact #pad .big{height:64px}
+  }
 </style>
 </head>
 <body>
@@ -1086,7 +1117,7 @@ function showHome(err){
     <div class="or">— or join with a code —</div>
     <div class="row"><input id="code" placeholder="CODE" maxlength="4" value="${esc(want)}" style="text-transform:uppercase;letter-spacing:4px;font-weight:700"><button data-act="join">Join</button></div>
     <div class="err" id="err">${esc(err||'')}</div>
-    <div class="hint" style="text-align:right">v1.5</div>
+    <div class="hint" style="text-align:right">v1.6</div>
   </div>`;
 }
 async function enterRoom(code,token){
@@ -1369,7 +1400,7 @@ async function enterRoom(code,token){
   document.getElementById('app').innerHTML=`
   <div class="g" id="game">
     <header class="gtop">
-      <div class="brand">Ludilo</div><span class="rcode">Room <b>${esc(code)}</b></span><span id="gclk" class="gclk"></span>
+      <div class="brand">Ludilo</div><span class="rcode">Room <b>${esc(code)}</b></span><span id="gclk" class="gclk"></span><span id="specn" class="specn"></span>
       <div class="gtop-r"><button class="tb" data-ui="stats" aria-label="Statistics">📊<span class="lbl"> Stats</span></button><button class="tb" data-dact="toggle" aria-label="Settings">⚙️<span class="lbl"> Settings</span></button></div>
     </header>
     <div class="gmain">
@@ -1380,7 +1411,7 @@ async function enterRoom(code,token){
         <div id="turnpill"></div>
         <div id="pad"></div>
       </section>
-      <aside class="gright">${chatbox('side')}</aside>
+      <aside class="gright"><div class="gact" id="gact"></div>${chatbox('side')}</aside>
     </div>
     <div class="gbottom"><div id="lastline"></div><button class="tb" data-ui="tray" aria-label="Emotes">😊</button><button class="tb" data-ui="sheet" aria-label="Chat">💬<span class="badge" id="badge"></span></button></div>
   </div>
@@ -1390,8 +1421,14 @@ async function enterRoom(code,token){
     <form class="chatform"><input placeholder="Say something…" maxlength="200" autocomplete="off" aria-label="Message"><button>Send</button></form></div></div>
   <div id="endov" class="ov"></div><div id="statsov" class="ov"></div><div id="swapov" class="ov"></div>
   <input id="linkbox" type="text" readonly tabindex="-1" style="position:absolute;left:-9999px" value="${esc(location.origin+location.pathname+'?room='+code)}">`;
+  placeCtl();
   pollLoop();
 }
+function placeCtl(){        // PC: turn line + buttons sit above the chat so the board gets the full height; phone: under the board
+  const pc=!isPhone(),box=document.getElementById(pc?'gact':'game'),tp=document.getElementById('turnpill'),pad=document.getElementById('pad');if(!tp||!pad)return;
+  const dest=pc?box:document.querySelector('.gcenter');if(!dest||tp.parentNode===dest)return;dest.appendChild(tp);dest.appendChild(pad);
+}
+window.addEventListener('resize',()=>{if(typeof placeCtl==='function')placeCtl();});
 function setChat(){}   // the old chat column is gone
 
 /* ---------- chat ---------- */
@@ -1532,7 +1569,7 @@ function chipsFor(){
   }
   const ent=mv.find(m=>m.t==='enter');
   if(ent) chips.push({cls:'',icon:'<b class="ic">+</b>',label:'Out',tag:moveTag(ent),k:'enter'});
-  mv.filter(m=>m.t==='move').forEach(m=>idxs(m.from).forEach(i=>chips.push({cls:'',icon:pic,label:String(i+1),tag:moveTag(m),k:'move',from:m.from,i})));
+  mv.filter(m=>m.t==='move').forEach(m=>idxs(m.from).forEach(i=>chips.push({cls:'',icon:pic,label:String(i+1),tag:moveTag(m),k:'move',from:m.from,i,die:S.die})));
   if(mv.some(m=>m.t==='mine')) chips.push({cls:'red',icon:'<b class="ic">💣</b>',label:'Mine',tag:V&&V.hints?'plant':'',k:'minemode'});
   const hint=V&&V.hints?(S.die===6?'You rolled a 6 · you roll again after this':`You rolled a ${S.die} · pick a pawn`):'';
   return {chips,hint};
@@ -1541,10 +1578,16 @@ function renderPad(){
   const el=document.getElementById('pad');if(!el)return;
   if(padHeld) return;
   if(!(V&&V.game)||V.game.phase==='over'){el.innerHTML='';return;}
+  if(ME<0){                       // spectator: watch, or take over a bot
+    const bots=PLAYERS.map((x,i)=>i).filter(i=>PLAYERS[i].bot&&!PLAYERS[i].human);
+    const row=bots.map(i=>{const x=PLAYERS[i];return `<button class="chip spec" data-sit="${i}" style="--c:${x.c}"><span class="cr">${THEME==='fantasy'?`<img src="${IMG['p_'+x.faction]}" alt="">`:`<i style="background:${x.c}"></i>`}<b>Play</b></span><small>${esc(THEME==='fantasy'?FACTIONS[x.faction].name:x.name)}</small></button>`;}).join('');
+    const h=`<div class="padhint">👀 You're watching${bots.length?' · take over a bot to join in':''}</div><div class="actrow"><div class="chips">${row}</div></div>`;
+    if(el.innerHTML!==h) el.innerHTML=h; return;
+  }
   const act=myTurn(),pl=PLAYERS[ME]||PLAYERS[S.cur]||{c:'#fff'};
   const c=chipsFor();
   let row='';
-  if(c&&c.chips.length) row=`<div class="chips">${c.chips.map((x,j)=>`<button class="chip ${x.cls}" data-chip="${j}" style="${x.cls?'':'--c:'+pl.c}"><span class="cr">${x.icon}<b>${esc(x.label)}</b></span>${x.tag?`<small style="color:${TAGC[x.tag]||'#9aa3b5'}">${esc(x.tag)}</small>`:''}</button>`).join('')}</div>`;
+  if(c&&c.chips.length) row=`<div class="chips">${c.chips.map((x,j)=>`<button class="chip ${x.cls}" data-chip="${j}" style="${x.cls?'':'--c:'+pl.c}"><span class="cr">${x.icon}<b>${esc(x.label)}</b>${x.die?miniDie(x.die):''}</span>${x.tag?`<small style="color:${TAGC[x.tag]||'#9aa3b5'}">${esc(x.tag)}</small>`:''}</button>`).join('')}</div>`;
   else if(act&&S.phase==='guess'&&!S.rolling) row=`<button class="big even" data-pad="guess" data-g="even">EVENS ${miniDie(2)}${miniDie(4)}${miniDie(6)}</button><button class="big odd" data-pad="guess" data-g="odd">ODDS ${miniDie(1)}${miniDie(3)}${miniDie(5)}</button>`;
   else {
     const openMine=S.phase==='opening'&&S.open&&ME>=0&&S.open.contenders.includes(ME)&&S.open.vals[ME]==null;
@@ -1558,6 +1601,7 @@ function renderPad(){
   if(el.innerHTML!==h) el.innerHTML=h;
 }
 UI.chipCache=null;
+document.addEventListener('click',e=>{const b=e.target.closest('[data-sit]');if(!b)return;b.disabled=true;api({op:'sit',seat:+b.dataset.sit});});
 document.addEventListener('click',e=>{const b=e.target.closest('[data-chip]');if(!b)return;
   const c=chipsFor();if(!c)return;const x=c.chips[+b.dataset.chip];if(!x)return;
   if(x.k==='minemode'){S.mineMode=true;render();return;}
@@ -1568,6 +1612,8 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-chip]');if
 });
 function renderBomb(){const el=document.getElementById('bombbox');if(el&&el.innerHTML)el.innerHTML='';}
 function renderTurn(){
+  const sn=document.getElementById('specn');if(sn){const L=(V&&V.specs)||[];const t=L.length?'👀 '+L.length:'';if(sn.textContent!==t){sn.textContent=t;sn.title=L.length?L.join(', ')+' watching':'';}}
+  const ga=document.getElementById('gact');if(ga&&PLAYERS[ME])ga.style.setProperty('--myc',PLAYERS[ME].c);
   const el=document.getElementById('turnpill');if(!el)return;
   const g=V&&V.game;let h='';
   if(g){const pl=PLAYERS[S.cur]||{c:'#fff'};
@@ -1622,9 +1668,9 @@ function renderRoom(){
       <button class="tb" data-dact="toggle" data-stab="opts" aria-label="Settings">⚙️<span class="lbl"> Settings</span></button></div>
     ${UI.qr?`<div class="qrpop"><div id="qr"></div><div class="hint">Scan to join room ${esc(V.code)}</div><button data-ui="qr">Close</button></div>`:''}
     <div class="rmain"><div class="rleft">
-      <div class="rhint"><b>${fan?'Choose your faction':'Choose your seat and colour'}</b><span>⇄ Taken? Ask that player to swap.</span></div>
+      <div class="rhint"><b>${ME<0?'👀 You\'re watching':fan?'Choose your faction':'Choose your seat and colour'}</b><span>${ME<0?'Take a free or bot seat to play.':'⇄ Taken? Ask that player to swap.'}</span></div>
       <div class="rcards">${cards}</div>
-      <div class="rbar"><button class="rchip" data-dact="toggle" data-stab="opts">${esc(summary)}</button><span class="rready">${humans} player${humans===1?'':'s'}${openN?' · open seats become bots':''}</span>${startBtn}</div>
+      <div class="rbar"><button class="rchip" data-dact="toggle" data-stab="opts">${esc(summary)}</button><span class="rready">${humans} player${humans===1?'':'s'}${openN?' · open seats become bots':''}${V.specs&&V.specs.length?' · 👀 '+V.specs.length+' watching':''}</span>${startBtn}</div>
       <div class="rphone"><button class="tb rchatb" data-ui="sheet" aria-label="Chat">💬<span class="badge" id="badge2"></span></button>${startBtn}</div>
     </div>
     <div class="rchat chatbox"><div class="gh">💬 Room chat</div><div class="msgs"></div><div class="emobar"></div>
@@ -1797,7 +1843,10 @@ function renderDesign(){
     <b>Test sounds</b><div class="row" style="flex-wrap:wrap;gap:5px">${[['dice','🎲 Dice'],['step','👣 Step'],['spawn','Spawn'],['hit-elves','Elf hit'],['hit-dwarves','Dwarf hit'],['hit-orcs','Orc hit'],['grunt-elves','Elf death'],['grunt-dwarves','Dwarf death'],['grunt-orcs','Orc death'],['boom','💥 Boom'],['mmm','Mmmm'],['ahem','Ahem'],['drumroll','🥁 Drum roll'],['victory','🏆 Victory']].map(([k,n])=>`<button data-dact="snd" data-k="${k}" style="padding:5px 8px;font-size:12px">${n}</button>`).join('')}</div>`;
   if(sTab==='opts'){
     const run=V&&V.game&&V.game.phase!=='over', can=HOST&&!run, dis=can?'':'disabled';
-    h+=`<b>Game options</b>
+    h+=`<b>Invite friends</b><div class="row" style="flex-wrap:wrap;gap:8px"><button data-dact="invite">📨 ${navigator.share&&isPhone()?'Share link':'Copy link'}</button><button data-dact="sqr" class="${UI.sqr?'on':''}">QR code</button></div>
+    ${UI.sqr?'<div id="sqrbox" style="align-self:center;background:#fff;padding:10px;border-radius:10px;width:max-content"></div>':''}
+    <div class="hint">Room <b>${esc(V?V.code:'')}</b>. ${V&&V.game&&V.game.phase!=='over'?'Friends who join now can watch, and take over a bot to play.':'Friends who join get a free seat, or watch if the room is full.'}</div>
+    <b>Game options</b>
     <label>Board style</label><div class="seg"><button data-act="theme" data-t="fantasy" class="${THEME==='fantasy'?'on':''}" ${dis}>⚔️ Fantasy</button><button data-act="theme" data-t="classic" class="${THEME==='classic'?'on':''}" ${dis}>🎲 Classic</button></div>
     <div class="hint">Fantasy: pick a faction. Classic: pick a seat and a colour.</div>
     <label>Turn timer<b id="tval">${V&&V.timeLimit?V.timeLimit+' s':'Off'}</b></label><input class="tslider" type="range" min="0" max="60" step="5" value="${V&&V.timeLimit||0}" data-timer ${dis}>
@@ -1820,6 +1869,7 @@ function renderDesign(){
     <p><b>Mines:</b> with a 6 you may plant a mine under one of your field pawns instead of moving (optional). Enemies landing on it blow up everything there; your own pawns are safe while one of them stands on it.</p>
     <p><b>Home:</b> 4 steps; no overshooting, no jumping inside. First with all 4 home wins.</p></div>`;
   el.innerHTML=h;
+  if(sTab==='opts'&&UI.sqr){const q=document.getElementById('sqrbox');const lb=document.getElementById('linkbox');if(q&&lb&&window.QRCode)new QRCode(q,{text:lb.value,width:170,height:170,correctLevel:QRCode.CorrectLevel.M});}
 }
 document.addEventListener('pointerdown',e=>{const p=document.getElementById('dpanel');if(!p||!p.classList.contains('open'))return;if(p.contains(e.target)||e.target.closest('[data-dact=toggle]'))return;p.classList.remove('open');},true);
 function refreshDesign(){const p=document.getElementById('dpanel');if(!p||!p.classList.contains('open')||sTab!=='opts')return;if(document.activeElement&&p.contains(document.activeElement)&&document.activeElement.matches('input'))return;renderDesign();}
@@ -1831,6 +1881,10 @@ document.addEventListener('input',e=>{const k=e.target.dataset&&e.target.dataset
 document.addEventListener('click',async e=>{const b=e.target.closest('[data-dact]');if(!b)return;const a=b.dataset.dact;
   if(a==='toggle'){const p=document.getElementById('dpanel');if(b.dataset.stab&&!p.classList.contains('open')){sTab=b.dataset.stab;}p.classList.toggle('open');if(p.classList.contains('open'))renderDesign();}
   if(a==='hints'){api({op:'hints',on:b.dataset.on==='1'});}
+  if(a==='sqr'){UI.sqr=!UI.sqr;renderDesign();}
+  if(a==='invite'){const lb=document.getElementById('linkbox');const url=lb?lb.value:location.href;
+    if(navigator.share&&isPhone()){navigator.share({title:'Ludilo',text:'Come play Ludilo with me! Room '+(V?V.code:''),url}).catch(()=>{});}
+    else{try{await navigator.clipboard.writeText(url);}catch(err){if(lb){lb.select();document.execCommand&&document.execCommand('copy');}}b.textContent='✓ Link copied';setTimeout(()=>renderDesign(),1600);}}
   if(a==='restart'){if(!restartArm){restartArm=true;renderDesign();setTimeout(()=>{restartArm=false;renderDesign();},4000);}else{restartArm=false;api({op:'restart'});document.getElementById('dpanel').classList.remove('open');}}
   if(a==='tab'){sTab=b.dataset.t;renderDesign();}
   if(a==='land'){dLand=b.dataset.land;renderDesign();}

@@ -145,7 +145,7 @@ function createRoom(name) {
   const room = {
     code, theme: 'fantasy', game: null, seq: 0, events: [], waiters: [], busyUntil: 0, botTimer: null, lastActive: Date.now(),
     seats: FKEYS.map((f, i) => ({ token: null, name: '', bot: false, open: true, faction: f, c: PALETTE[i][1], lastSeen: 0 })),
-    hostToken: null, log: [], chat: [], chatId: 0, timeLimit: 0, turnTimer: null, timerKey: '', hints: false, swap: null, cool: {},
+    hostToken: null, log: [], chat: [], chatId: 0, timeLimit: 0, turnTimer: null, timerKey: '', hints: false, swap: null, cool: {}, specs: {},
   };
   rooms.set(code, room);
   const t = token(); room.hostToken = t;
@@ -164,6 +164,7 @@ function publicState(room) {
     code: room.code, theme: room.theme, timeLimit: room.timeLimit, hints: !!room.hints, swap: room.swap && { from: room.swap.from, to: room.swap.to },
     seats: room.seats.map((s, i) => ({ name: seatName(room, i), bot: s.bot, open: s.open, human: !!s.token, faction: s.faction, c: colorOf(room, i), online: !!s.token && Date.now() - s.lastSeen < 15000 })),
     host: seatOf(room, room.hostToken),
+    specs: Object.values(room.specs || {}).filter(x => Date.now() - x.lastSeen < 40000).map(x => x.name),
     game: G && { stats: G.stats, feed: (G.feed || []).slice(0, 40), elapsed: (G.endedAt || Date.now()) - (G.startedAt || Date.now()), auto: room.auto != null && room.auto === G.turnId, pawns: G.pawns, mines: G.mines, cur: G.cur, phase: G.phase, die: G.die, rollsLeft: G.rollsLeft, moves: G.phase === 'choose' ? G.moves : [], oe: G.oe, winner: G.winner, open: G.open },
     log: room.log.slice(0, 30),
     chat: room.chat.slice(-40),
@@ -457,10 +458,13 @@ function handleApi(req, res, body) {
   room.lastActive = Date.now();
   const seat = seatOf(room, t), isHost = !!t && t === room.hostToken;
   if (seat >= 0) room.seats[seat].lastSeen = Date.now();
+  if (!room.specs) room.specs = {};
+  const spec = seat < 0 && t ? room.specs[t] : null; if (spec) spec.lastSeen = Date.now();
 
   if (op === 'chat') {
     const text = String(body.text || '').trim(); if (!text) return send(res, 200, { ok: true });
-    chatMsg(room, seat, text, false); emit(room, { t: 'chat' }); return send(res, 200, { ok: true });
+    const sp = seat < 0 && room.specs && room.specs[t]; if (seat < 0 && !sp) return send(res, 200, { ok: false });
+    chatMsg(room, seat, text, false, sp ? { name: sp.name + ' 👀' } : null); emit(room, { t: 'chat' }); return send(res, 200, { ok: true });
   }
   if (op === 'emote' && seat >= 0) {
     const E = ['🙏', '😠', '😒', '⏳', '😂'];
@@ -478,13 +482,35 @@ function handleApi(req, res, body) {
   }
   if (op === 'join') {
     if (seat >= 0) return send(res, 200, { room: room.code, token: t });           // already in (page reload)
+    if (spec) return send(res, 200, { room: room.code, token: t, spectator: true });
     const free = room.game && room.game.phase !== 'over' ? -1 : room.seats.findIndex(s => s.open && !s.token);
     const tk = token();
-    if (free < 0) return send(res, 200, { room: room.code, token: tk, spectator: true });
+    if (free < 0) {                      // nothing free (or a game is running): come in as a spectator
+      const used = new Set([...room.seats.map((x, i) => seatName(room, i)), ...Object.values(room.specs).map(x => x.name)]);
+      let n = clean(body.name) || 'Guest', k = 2; const base = n; while (used.has(n)) n = (base.slice(0, 11) + ' ' + k++);
+      room.specs[tk] = { name: n, lastSeen: Date.now() };
+      chatMsg(room, -1, `${n} is watching. 👀`, true);
+      emit(room, { t: 'state' });
+      return send(res, 200, { room: room.code, token: tk, spectator: true });
+    }
     takeSeat(room, free, tk, body.name);
     chatMsg(room, -1, `${seatName(room, free)} joined the room.`, true);
     emit(room, { t: 'state', m: `${seatName(room, free)} joined.` });
     return send(res, 200, { room: room.code, token: tk });
+  }
+  if (op === 'leave' && spec) { delete room.specs[t]; chatMsg(room, -1, `${spec.name} stopped watching.`, true); emit(room, { t: 'state' }); return send(res, 200, { ok: true }); }
+  if (op === 'sit' && spec && room.game && room.game.phase !== 'over') {   // a spectator takes over a bot in the middle of a game
+    const i = body.seat, s = room.seats[i];
+    if (![0, 1, 2].includes(i) || !s.bot || s.token) return send(res, 200, { ok: false });
+    const was = seatName(room, i);
+    s.token = t; s.name = spec.name; s.bot = false; s.open = false; s.lastSeen = Date.now(); delete room.specs[t];
+    if (!room.hostToken) room.hostToken = t;
+    clearTimeout(room.botTimer); room.botTimer = null;
+    if (room.game.cur === i) { room.auto = null; room.treset = (room.treset || 0) + 1; }
+    chatMsg(room, -1, `${spec.name} took over ${room.theme === 'fantasy' ? FACTIONS[s.faction].name : was} from the bot.`, true);
+    emit(room, { t: 'state', m: `${spec.name} joined the game.` });
+    tickBots(room);
+    return send(res, 200, { ok: true });
   }
   if (op === 'leave' && seat >= 0 && (!room.game || room.game.phase === 'over')) {
     const s = room.seats[seat]; s.token = null; s.open = true; s.name = '';
@@ -518,7 +544,7 @@ function handleApi(req, res, body) {
       if (!to.token && (to.open || to.bot)) {
         const wasBot = to.bot;
         if (seat >= 0) { const fr = room.seats[seat]; to.token = fr.token; to.name = fr.name; to.lastSeen = fr.lastSeen; fr.token = null; fr.name = ''; fr.bot = wasBot; fr.open = !wasBot; }
-        else { to.token = t; to.name = clean(body.name); to.lastSeen = Date.now(); }
+        else { to.token = t; to.name = spec ? spec.name : clean(body.name); to.lastSeen = Date.now(); if (spec) delete room.specs[t]; if (!room.hostToken) room.hostToken = t; }
         to.bot = false; to.open = false;
         if (room.swap) room.swap = null;
         emit(room, { t: 'state' });
@@ -571,6 +597,7 @@ function handlePoll(req, res, q) {
   if (!room) return send(res, 404, { error: 'Room not found' });
   const t = q.get('token'), since = +q.get('since') || 0;
   const seat = seatOf(room, t); if (seat >= 0) room.seats[seat].lastSeen = Date.now();
+  else if (t && room.specs && room.specs[t]) room.specs[t].lastSeen = Date.now();
   const reply = () => {
     let evs = room.events.filter(e => e.seq > since);
     const resync = since > 0 && room.events.length && room.events[0].seq > since + 1;
