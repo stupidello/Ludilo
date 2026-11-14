@@ -535,6 +535,11 @@ function handleApi(req, res, body) {
     if (isHost) { const other = room.seats.find(x => x.token); room.hostToken = other ? other.token : (Object.keys(room.specs || {})[0] || null); }
     emit(room, { t: 'state' }); return send(res, 200, { ok: true });
   }
+  if (op === 'god' && isHost) {            // god mode (testing): the host can pick dice, move pawns, place traps, set the turn
+    room.god = !!body.on; room.forceDie = null; room.botsPaused = false;
+    chatMsg(room, -1, room.god ? '🛠 God mode is ON: the host can set dice and move pieces.' : '🛠 God mode is off.', true);
+    emit(room, { t: 'state' }); tickBots(room); return send(res, 200, { ok: true });
+  }
   // ----- lobby -----
   if (!room.game || room.game.phase === 'over') {
     const target = Number.isInteger(body.seat) ? body.seat : seat;
@@ -585,11 +590,6 @@ function handleApi(req, res, body) {
     if (op === 'timer' && isHost && Number.isInteger(body.s) && body.s >= 0 && body.s <= 60) { room.timeLimit = body.s && body.s < 10 ? 10 : body.s; emit(room, { t: 'state' }); }
     if (op === 'start' && isHost && (!room.game || room.game.phase === 'over')) startGame(room);
     return send(res, 200, { ok: true });
-  }
-  if (op === 'god' && isHost) {            // god mode (testing): the host can pick dice, move pawns, place traps, set the turn
-    room.god = !!body.on; room.forceDie = null; room.botsPaused = false;
-    chatMsg(room, -1, room.god ? '🛠 God mode is ON: the host can set dice and move pieces.' : '🛠 God mode is off.', true);
-    emit(room, { t: 'state' }); tickBots(room); return send(res, 200, { ok: true });
   }
   if (op === 'gset' && isHost && room.god) {
     const G = room.game, k = body.k, ok = () => { emit(room, { t: 'state', resync: true }); tickBots(room); return send(res, 200, { ok: true }); };
