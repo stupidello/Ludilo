@@ -549,6 +549,23 @@
   .codebox button{white-space:nowrap}
   @media (max-width:600px){.codebox .lk{display:none}}
   .chip.spec{min-width:96px}
+  #godbtn{position:fixed;left:14px;bottom:14px;z-index:60;width:52px;height:52px;border-radius:50%;font-size:24px;background:#2a2140;border:2px solid #b48cff;box-shadow:0 0 18px rgba(180,140,255,.5);color:#fff;cursor:pointer}
+  #godbtn.on{background:#b48cff}
+  #godp{position:fixed;left:14px;bottom:76px;z-index:60;width:330px;max-height:70vh;overflow:auto;background:#1b1f29;border:2px solid #b48cff;border-radius:16px;padding:12px;box-shadow:0 12px 40px rgba(0,0,0,.6);display:flex;flex-direction:column;gap:6px;font-size:13px}
+  #godp .gh{display:flex;align-items:center;gap:8px}#godp .gh span{color:var(--muted);font-size:11px}#godp .gh button{margin-left:auto;width:30px;height:30px;padding:0}
+  #godp label{font-weight:700;color:#cfd5e3;margin-top:4px}#godp label em{font-weight:400;color:var(--muted);font-style:normal}
+  #godp .grow{display:flex;flex-wrap:wrap;gap:6px}
+  #godp button{height:34px;padding:0 10px;border-radius:9px;font-size:13px;font-weight:700;background:#262b37;border:1px solid #3a4256;color:#e9ecf2;cursor:pointer}
+  #godp button.on{background:#b48cff;border-color:#e6d8ff;color:#14171f}
+  #godp button.cl{border-color:var(--c)}#godp button.cl.on{background:var(--c);color:#14171f}
+  #godp .gnote{background:#262b37;border-radius:10px;padding:8px;line-height:1.9;color:#cfd5e3}#godp .gnote button{height:28px;margin-left:4px}
+  #godlayer{position:absolute;inset:0;z-index:7;pointer-events:none}
+  #godlayer button{position:absolute;transform:translate(-50%,-50%);border-radius:50%;padding:0;pointer-events:auto;cursor:pointer}
+  #godlayer .gt{width:8%;aspect-ratio:1;background:rgba(180,140,255,.12);border:2px dashed rgba(200,170,255,.55)}
+  #godlayer .gt:hover{background:rgba(180,140,255,.4)}
+  #godlayer .gp{width:7.5%;aspect-ratio:1;background:transparent;border:3px solid #fff;box-shadow:0 0 0 2px var(--c);z-index:2}
+  #godlayer .gp.on{border-color:#b48cff;box-shadow:0 0 0 4px #b48cff,0 0 16px #b48cff}
+  @media (max-width:600px){#godbtn{left:auto;right:10px;bottom:76px;width:46px;height:46px;font-size:20px}#godp{left:8px;right:8px;width:auto;bottom:130px;max-height:52vh}}
   .ccap{position:absolute;left:50%;bottom:7%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;padding:6px 18px 6px 6px;border-radius:999px;background:rgba(14,17,22,.92);border:2px solid var(--c);box-shadow:0 0 22px var(--c);white-space:nowrap;z-index:6;pointer-events:none;animation:ccap 1.6s ease both}
   .ccap img{width:34px;height:34px;border-radius:50%;object-fit:cover;background:#fff;border:2px solid var(--c)}
   .ccap b{font:800 18px Cinzel,serif;letter-spacing:.5px;color:#f3e7c9}
@@ -1093,9 +1110,10 @@ async function play(ev){
   }
   if(ev.t==='hop'){
     const p=ev.p,i=ev.i;S.pawns[p][i]=ev.from;S.anim={p,i};
-    const nx=queue[0],cut=nx&&nx.t==='capture'&&nx.p===p&&THEME==='fantasy'&&ANIM.cut&&!document.hidden;
-    const steps=cut?ev.path.slice(0,-1):ev.path;let prev=ev.from;
-    for(const rel of steps){const from=pawnXYanim(p,i,prev);S.pawns[p][i]=rel;if(ev.from===-1)sfx.spawn();else sfx.step();renderBoard();glideHop(from,relXY(p,rel));await sleep(HOPMS);prev=rel;}
+    let prev=ev.from,nx=null,cut=false;
+    for(let k=0;k<ev.path.length;k++){const rel=ev.path[k];
+      if(k===ev.path.length-1){nx=queue[0];cut=nx&&nx.t==='capture'&&nx.p===p&&THEME==='fantasy'&&ANIM.cut&&!document.hidden;if(cut)break;}   // the capture may arrive while we hop: decide on the last step
+      const from=pawnXYanim(p,i,prev);S.pawns[p][i]=rel;if(ev.from===-1)sfx.spawn();else sfx.step();renderBoard();glideHop(from,relXY(p,rel));await sleep(HOPMS);prev=rel;}
     S.anim=null;
     if(cut){try{await captureScene(p,i,prev,ev.path[ev.path.length-1],nx);}catch(e){console.error(e);S.hide=null;S.pawns[p][i]=ev.path[ev.path.length-1];renderBoard();}nx.played=true;}
     const g2=ev.s.game,last=ev.path[ev.path.length-1];
@@ -1167,7 +1185,7 @@ function showHome(err){
     <div class="or">— or join with a code —</div>
     <div class="row"><input id="code" placeholder="CODE" maxlength="4" value="${esc(want)}" style="text-transform:uppercase;letter-spacing:4px;font-weight:700"><button data-act="join">Join</button><button data-act="watchjoin" title="Join as a watcher">👀</button></div>
     <div class="err" id="err">${esc(err||'')}</div>
-    <div class="hint" style="text-align:right">v1.9</div>
+    <div class="hint" style="text-align:right">v1.9.1</div>
   </div>`;
 }
 async function enterRoom(code,token){
@@ -1578,7 +1596,7 @@ function renderPlayers(){
       <div class="pring2" data-p="${p}">${portrait(p,0)}</div>
       <div class="pinfo"><div class="pname">${esc(x.name)}${p===ME?'<span class="you">you</span>':''}${x.bot?' <span class="tag">🤖</span>':''}</div>
         <div class="ppips" aria-label="${home} of 4 pawns home" title="Pawns home">${[0,1,2,3].map(j=>`<i class="${j<home?'on':''}"></i>`).join('')}<span class="pst">${status}</span></div></div>
-      ${bub?`<div class="bub${EMOKEYS.includes(bub.e)?' img':''}">${EMOKEYS.includes(bub.e)?emoImg(p,bub.e,'bubi'):`<span>${esc(bub.e)}</span>`}</div>`:''}</div>`;
+      ${bub?`<div class="bub${EMOKEYS.includes(bub.e)?' img':''}" style="animation-delay:-${Math.max(0,2800-(bub.until-now))}ms">${EMOKEYS.includes(bub.e)?emoImg(p,bub.e,'bubi'):`<span>${esc(bub.e)}</span>`}</div>`:''}</div>`;
   }).join('');
   if(a&&a.innerHTML!==h)a.innerHTML=h;
   if(b&&b.innerHTML!==h)b.innerHTML=h;
@@ -1691,7 +1709,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-chip]');if
 });
 function renderBomb(){const el=document.getElementById('bombbox');if(el&&el.innerHTML)el.innerHTML='';}
 function renderTurn(){
-  const sn=document.getElementById('specn');if(sn){const L=(V&&V.specs)||[];const t=L.length?'👀 '+L.length:'';if(sn.textContent!==t){sn.textContent=t;sn.title=L.length?L.join(', ')+' watching':'';}}
+  const sn=document.getElementById('specn');if(sn){const L=(V&&V.specs)||[];const t=(V&&V.god?'🛠 God mode ':'')+(L.length?'👀 '+L.length:'');if(sn.textContent!==t){sn.textContent=t;sn.title=L.length?L.join(', ')+' watching':'';}}
   const ga=document.getElementById('gact');if(ga&&PLAYERS[ME])ga.style.setProperty('--myc',PLAYERS[ME].c);
   const el=document.getElementById('turnpill');if(!el)return;
   const g=V&&V.game;let h='';
@@ -1926,6 +1944,9 @@ function renderDesign(){
     h+=`<b>Animations <span style="font-weight:400;color:var(--muted);font-size:12px">· just for you</span></b>
     <label>Capture cutscenes</label><div class="seg"><button data-dact="anim" data-k="cut" data-v="1" class="${ANIM.cut?'on':''}">On</button><button data-dact="anim" data-k="cut" data-v="0" class="${ANIM.cut?'':'on'}">Off</button></div>
     <label>Zoom in on fights</label><div class="seg"><button data-dact="anim" data-k="zoom" data-v="0" class="${ANIM.zoom?'':'on'}">Off</button><button data-dact="anim" data-k="zoom" data-v="1" class="${ANIM.zoom?'on':''}">On</button></div>
+    ${HOST?`<b>🛠 God mode <span style="font-weight:400;color:var(--muted);font-size:12px">· for testing</span></b>
+    <div class="seg"><button data-dact="god" data-v="0" class="${V&&V.god?'':'on'}">Off</button><button data-dact="god" data-v="1" class="${V&&V.god?'on':''}">On</button></div>
+    <div class="hint">Lets you, the host, pick the next roll, move pawns, place traps and set whose turn it is (🛠 button next to the board). Everyone sees that it's on.</div>`:''}
     <b>Invite friends</b><div class="row" style="flex-wrap:wrap;gap:8px"><button data-dact="invite">📨 ${navigator.share&&isPhone()?'Share link':'Copy link'}</button><button data-dact="sqr" class="${UI.sqr?'on':''}">QR code</button></div>
     ${UI.sqr?'<div id="sqrbox" style="align-self:center;background:#fff;padding:10px;border-radius:10px;width:max-content"></div>':''}
     <div class="hint">Room <b>${esc(V?V.code:'')}</b>. ${V&&V.game&&V.game.phase!=='over'?'Friends who join now can watch, and take over a bot to play.':'Friends who join get a free seat, or watch if the room is full.'}</div>
@@ -2198,6 +2219,72 @@ async function trapScene(ev){
   await sleep(DUR);
   g.innerHTML='';S.hide=null;
 }
+</script>
+<script>
+/* ===================== god mode (testing, host only) ===================== */
+const GOD={open:false,edit:null,sel:null,owner:null};
+const gset=(o)=>api({op:'gset',...o});
+function godOn(){return !!(V&&V.god&&HOST);}
+function renderGod(){
+  let btn=document.getElementById('godbtn'),pan=document.getElementById('godp'),lay=document.getElementById('godlayer');
+  const bw=document.querySelector('.boardwrap');
+  if(!godOn()||!V.game||V.game.phase==='over'||!bw){if(btn)btn.remove();if(pan)pan.remove();if(lay)lay.remove();GOD.edit=null;return;}
+  if(!btn){btn=document.createElement('button');btn.id='godbtn';btn.textContent='🛠';btn.title='God mode';btn.onclick=()=>{GOD.open=!GOD.open;renderGod();};document.body.appendChild(btn);}
+  btn.classList.toggle('on',GOD.open);
+  if(!GOD.open){if(pan)pan.remove();if(lay)lay.remove();GOD.edit=null;return;}
+  if(!pan){pan=document.createElement('div');pan.id='godp';document.body.appendChild(pan);pan.addEventListener('click',godClick);}
+  const fd=V.forceDie,sp=(q)=>`style="--c:${PLAYERS[q].c}"`,fn=q=>THEME==='fantasy'?FACTIONS[PLAYERS[q].faction].name:PLAYERS[q].name;
+  const seats=[0,1,2];
+  const h=`<div class="gh"><b>🛠 God mode</b><span>only you see this</span><button data-g="close">✕</button></div>
+   <label>Next roll ${fd?`<em>· ${fd} is loaded</em>`:''}</label>
+   <div class="grow">${[1,2,3,4,5,6].map(v=>`<button data-g="die" data-v="${v}" class="${fd===v?'on':''}">${v}</button>`).join('')}${fd?'<button data-g="die" data-v="0">✕</button>':''}</div>
+   <label>Quick tests <em>· the player on turn rolls into it</em></label>
+   <div class="grow"><button data-g="scene" data-w="capture">⚔️ Capture</button>${seats.map(q=>`<button data-g="scene" data-w="trap" data-p="${q}" ${sp(q)} class="cl">${THEME==='fantasy'?{elves:'🕸 Net',dwarves:'🛢 Keg',orcs:'🪨 Boulder'}[PLAYERS[q].faction]:'💣 '+fn(q)}</button>`).join('')}</div>
+   <label>Whose turn</label>
+   <div class="grow">${seats.map(q=>`<button data-g="turn" data-p="${q}" ${sp(q)} class="cl${S.cur===q?' on':''}">${esc(fn(q))}</button>`).join('')}</div>
+   <label>Bots</label>
+   <div class="grow"><button data-g="bots" data-v="${V.botsPaused?0:1}" class="${V.botsPaused?'on':''}">${V.botsPaused?'▶ Resume bots':'⏸ Pause bots'}</button></div>
+   <label>Edit the board</label>
+   <div class="grow"><button data-g="edit" data-v="pawn" class="${GOD.edit==='pawn'?'on':''}">✋ Move pawns</button><button data-g="edit" data-v="trap" class="${GOD.edit==='trap'?'on':''}">🪤 Place traps</button></div>
+   ${GOD.edit==='pawn'?`<div class="gnote">${GOD.sel?`Pawn selected: tap a tile to move it, or <button data-g="send" data-to="-1">→ Bench</button><button data-g="send" data-to="home">→ Home</button>`:'Tap a pawn on the board, then tap where it should go.'}</div>`:''}
+   ${GOD.edit==='trap'?`<div class="gnote">Owner: ${seats.map(q=>`<button data-g="owner" data-p="${q}" ${sp(q)} class="cl${GOD.owner===q?' on':''}">${esc(fn(q))}</button>`).join('')}<br>Tap a tile to add or remove a trap.</div>`:''}`;
+  if(pan.innerHTML!==h)pan.innerHTML=h;
+  // board overlay for editing
+  if(!GOD.edit){if(lay)lay.remove();return;}
+  if(!lay){lay=document.createElement('div');lay.id='godlayer';bw.appendChild(lay);lay.addEventListener('click',godBoard);}
+  let o='';
+  for(let a=0;a<N;a++){const[x,y]=stepXY(a);if(GOD.edit==='trap'&&a%SEC===0)continue;o+=`<button class="gt" data-a="${a}" style="left:${x/VW*100}%;top:${y/VH*100}%"></button>`;}
+  if(GOD.edit==='pawn')S.pawns.forEach((ps,q)=>ps.forEach((rel,i)=>{if(rel<0)return;const[x,y]=relXY(q,rel);o+=`<button class="gp${GOD.sel&&GOD.sel.p===q&&GOD.sel.i===i?' on':''}" data-p="${q}" data-i="${i}" style="left:${x/VW*100}%;top:${y/VH*100}%;--c:${PLAYERS[q].c}"></button>`;}));
+  if(lay.innerHTML!==o)lay.innerHTML=o;
+}
+function godClick(e){
+  const b=e.target.closest('[data-g]');if(!b)return;const g=b.dataset.g,P=b.dataset.p!=null?+b.dataset.p:null;
+  if(g==='close'){GOD.open=false;}
+  if(g==='die')gset({k:'die',v:+b.dataset.v||null});
+  if(g==='scene')gset({k:'scene',what:b.dataset.w,p:P});
+  if(g==='turn')gset({k:'turn',p:P});
+  if(g==='bots')gset({k:'bots',paused:b.dataset.v==='1'});
+  if(g==='edit'){GOD.edit=GOD.edit===b.dataset.v?null:b.dataset.v;GOD.sel=null;if(GOD.owner==null)GOD.owner=ME>=0?ME:0;}
+  if(g==='owner')GOD.owner=P;
+  if(g==='send'&&GOD.sel){let rel=-1;if(b.dataset.to==='home'){const used=S.pawns[GOD.sel.p];rel=[42,41,40,39].find(r=>!used.includes(r))??42;}gset({k:'pawn',p:GOD.sel.p,i:GOD.sel.i,rel});GOD.sel=null;}
+  // pawns on the bench: pick one through the "Move pawns" flow by tapping a bench pawn in the strip below
+  renderGod();
+}
+function godBoard(e){
+  const b=e.target.closest('button');if(!b)return;e.stopPropagation();
+  if(b.classList.contains('gp')){GOD.sel={p:+b.dataset.p,i:+b.dataset.i};renderGod();return;}
+  const a=+b.dataset.a;
+  if(GOD.edit==='trap'){gset({k:'trap',a,p:GOD.owner});return;}
+  if(GOD.edit==='pawn'){
+    let sel=GOD.sel;
+    if(!sel){   // tapping an empty tile with nothing selected: bring out a bench pawn of the player on turn
+      const q=S.cur>=0?S.cur:0,i=S.pawns[q].indexOf(-1);if(i<0)return;sel={p:q,i};}
+    gset({k:'pawn',p:sel.p,i:sel.i,rel:((a-sel.p*SEC)%N+N)%N});GOD.sel=null;renderGod();
+  }
+}
+// host switch in Settings › Game options
+document.addEventListener('click',e=>{const b=e.target.closest('[data-dact="god"]');if(!b)return;e.stopPropagation();api({op:'god',on:b.dataset.v==='1'});});
+{const _r=render;render=function(){_r.apply(this,arguments);try{renderGod();}catch(e){console.error(e);}};}
 </script>
 </body>
 </html>

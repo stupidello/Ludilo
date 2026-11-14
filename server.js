@@ -164,6 +164,7 @@ function publicState(room) {
     code: room.code, theme: room.theme, timeLimit: room.timeLimit, hints: !!room.hints, mineRule: room.mineRule === 'safe' ? 'safe' : 'classic', swap: room.swap && { from: room.swap.from, to: room.swap.to },
     seats: room.seats.map((s, i) => ({ name: seatName(room, i), bot: s.bot, open: s.open, human: !!s.token, faction: s.faction, c: colorOf(room, i), online: !!s.token && Date.now() - s.lastSeen < 15000 })),
     host: seatOf(room, room.hostToken),
+    god: !!room.god, forceDie: room.god ? room.forceDie || null : null, botsPaused: !!(room.god && room.botsPaused),
     hostSpec: room.specs && room.specs[room.hostToken] ? room.specs[room.hostToken].name : null,
     specs: Object.values(room.specs || {}).filter(x => Date.now() - x.lastSeen < 40000).map(x => x.name),
     game: G && { mineSafe: !!G.mineSafe, stats: G.stats, feed: (G.feed || []).slice(0, 100), elapsed: (G.endedAt || Date.now()) - (G.startedAt || Date.now()), auto: room.auto != null && room.auto === G.turnId, pawns: G.pawns, mines: G.mines, cur: G.cur, phase: G.phase, die: G.die, rollsLeft: G.rollsLeft, moves: G.phase === 'choose' ? G.moves : [], oe: G.oe, winner: G.winner, open: G.open },
@@ -211,8 +212,7 @@ function emit(room, ev) {
   ev.seq = ++room.seq; ev.s = JSON.parse(JSON.stringify(publicState(room)));
   room.events.push(ev); if (room.events.length > 400) room.events.splice(0, room.events.length - 400);
   room.lastActive = now;
-  const w = room.waiters; room.waiters = [];
-  w.forEach(fn => fn());
+  if (!room.wakePending) { room.wakePending = true; setImmediate(() => { room.wakePending = false; const w = room.waiters; room.waiters = []; w.forEach(fn => fn()); }); }
 }
 
 /* ---------- game flow ---------- */
@@ -246,13 +246,14 @@ function startTurn(room, p) {
   G.rollsLeft = rollsAllowed(G, p); G.phase = 'roll';
   emit(room, { t: 'state', m: `${poss(room, p)} turn` + (G.rollsLeft === 3 ? ' (3 tries to roll a 6)' : '') });
 }
+function takeDie(room) { const f = room.god && room.forceDie; if (f) { room.forceDie = null; return f; } return d6(); }   // god mode: host can pick the next roll
 function doRoll(room, p) {
   const G = room.game;
   if (G && G.phase === 'choose' && G.cur === p && G.moves.length && G.moves.every(m => m.t === 'mine')) {   // mines are optional: roll again instead
     G.moves = []; G.bonus = false; G.rollsLeft = 1; G.phase = 'roll'; logMsg(room, `${nm(room, p)} rolls again without planting.`);
   }
   if (!G || G.phase !== 'roll' || G.cur !== p) return;
-  const r = d6(); G.die = r; G.rollsLeft--;
+  const r = takeDie(room); G.die = r; G.rollsLeft--;
   if (r === 6) G.bonus = true;
   const mv = legal(G, p, r);
   if (!mv.length) {
@@ -295,7 +296,7 @@ function withMsg(room, ev) {
 function doGuess(room, p, g) {
   const G = room.game;
   if (!G || G.phase !== 'guess' || G.cur !== p || (g !== 'odd' && g !== 'even')) return;
-  const i = G.oe.i, r = d6(); G.die = r;
+  const i = G.oe.i, r = takeDie(room); G.die = r;
   const right = (g === 'odd') === (r % 2 === 1);
   const rel = G.pawns[p][i], to = right ? rel + r : rel - r;
   G.phase = 'anim';
@@ -348,7 +349,7 @@ function wakeUp(room, seat) {        // the player is back: stop the autopilot
 }
 function tickBots(room) {
   armTimer(room);
-  if (room.botTimer || !room.game) return;
+  if (room.botTimer || !room.game || (room.god && room.botsPaused)) return;
   const G = room.game; let act = null, think = 600;
   if (G.phase === 'opening' && !G.open.done) {
     const bp = G.open.contenders.find(q => room.seats[q].bot && G.open.vals[q] == null);
@@ -584,6 +585,42 @@ function handleApi(req, res, body) {
     if (op === 'timer' && isHost && Number.isInteger(body.s) && body.s >= 0 && body.s <= 60) { room.timeLimit = body.s && body.s < 10 ? 10 : body.s; emit(room, { t: 'state' }); }
     if (op === 'start' && isHost && (!room.game || room.game.phase === 'over')) startGame(room);
     return send(res, 200, { ok: true });
+  }
+  if (op === 'god' && isHost) {            // god mode (testing): the host can pick dice, move pawns, place traps, set the turn
+    room.god = !!body.on; room.forceDie = null; room.botsPaused = false;
+    chatMsg(room, -1, room.god ? '🛠 God mode is ON: the host can set dice and move pieces.' : '🛠 God mode is off.', true);
+    emit(room, { t: 'state' }); tickBots(room); return send(res, 200, { ok: true });
+  }
+  if (op === 'gset' && isHost && room.god) {
+    const G = room.game, k = body.k, ok = () => { emit(room, { t: 'state', resync: true }); tickBots(room); return send(res, 200, { ok: true }); };
+    if (k === 'die') { room.forceDie = [1, 2, 3, 4, 5, 6].includes(body.v) ? body.v : null; return ok(); }
+    if (k === 'bots') { room.botsPaused = !!body.paused; if (room.botsPaused) { clearTimeout(room.botTimer); room.botTimer = null; } return ok(); }
+    if (!G || G.phase === 'over') return send(res, 200, { ok: false });
+    const P = [0, 1, 2].includes(body.p) ? body.p : null;
+    const tidy = () => { clearTimeout(room.botTimer); room.botTimer = null; room.busyUntil = 0; if (G.phase === 'choose' || G.phase === 'guess' || G.phase === 'wait') { G.phase = 'roll'; G.moves = []; G.oe = null; G.rollsLeft = Math.max(1, G.rollsLeft || 0); } };
+    if (k === 'turn' && P != null) { clearTimeout(room.botTimer); room.botTimer = null; room.busyUntil = 0; if (G.phase === 'opening') { G.open.done = true; } startTurn(room, P); tickBots(room); return send(res, 200, { ok: true }); }
+    if (k === 'pawn' && P != null && [0, 1, 2, 3].includes(body.i) && Number.isInteger(body.rel) && body.rel >= -1 && body.rel <= END) {
+      if (body.rel >= HOME0 && G.pawns[P].some((r, j) => j !== body.i && r === body.rel)) return send(res, 200, { ok: false });
+      G.pawns[P][body.i] = body.rel; tidy(); return ok();
+    }
+    if (k === 'trap' && Number.isInteger(body.a) && body.a >= 0 && body.a < N && body.a % SEC !== 0) {
+      if (P == null || G.mines[body.a] === P) delete G.mines[body.a]; else G.mines[body.a] = P; return ok();
+    }
+    if (k === 'scene' && (body.what === 'capture' || body.what === 'trap')) {     // one-tap test: the current player's next roll hits something
+      const me = G.cur >= 0 ? G.cur : 0, foe = P != null && P !== me ? P : (me + 1) % 3;
+      let i = G.pawns[me].findIndex(r => r >= 0 && r <= 30); if (i < 0) { i = 0; G.pawns[me][0] = 5; }
+      const rel = G.pawns[me][i], d = 4, a = abs(me, rel + d);
+      if (a % SEC === 0) { G.pawns[me][i] = rel + 1; }
+      const t = abs(me, G.pawns[me][i] + d);
+      Object.keys(G.mines).forEach(x => { if (+x === t) delete G.mines[x]; });
+      G.pawns.forEach((ps, q) => ps.forEach((r, j) => { if (q !== me && r >= 0 && r <= 38 && abs(q, r) === t) G.pawns[q][j] = -1; }));
+      if (body.what === 'capture') { const j = G.pawns[foe].indexOf(-1) >= 0 ? G.pawns[foe].indexOf(-1) : 0; G.pawns[foe][j] = ((t - foe * SEC) % N + N) % N; }
+      else G.mines[t] = foe;
+      room.forceDie = d; tidy(); G.cur = me; G.phase = 'roll'; G.rollsLeft = Math.max(1, G.rollsLeft || 0);
+      if (room.seats[me].bot) room.botsPaused = false;
+      return ok();
+    }
+    return send(res, 200, { ok: false });
   }
   if (op === 'restart') {               // host ends the game and everyone goes back to the room screen
     if (isHost && room.game) {
