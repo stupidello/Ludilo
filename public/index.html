@@ -41,7 +41,7 @@
   details{font-size:13px;color:var(--muted)}
   details summary{cursor:pointer;color:var(--text)}
   .can{cursor:pointer}
-  .hop{transform-box:fill-box;transform-origin:center;animation:hop .2s ease-out}
+  #hopg{transform-box:view-box}
   @keyframes hop{0%{transform:translateY(0) scale(1)}45%{transform:translateY(-9px) scale(1.25)}100%{transform:translateY(0) scale(1)}}
   .die-g{transform-box:fill-box;transform-origin:center}
   .die-g.landed{animation:land .35s ease-out}
@@ -549,6 +549,21 @@
   .codebox button{white-space:nowrap}
   @media (max-width:600px){.codebox .lk{display:none}}
   .chip.spec{min-width:96px}
+  .ccap{position:absolute;left:50%;bottom:7%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;padding:6px 18px 6px 6px;border-radius:999px;background:rgba(14,17,22,.92);border:2px solid var(--c);box-shadow:0 0 22px var(--c);white-space:nowrap;z-index:6;pointer-events:none;animation:ccap 1.6s ease both}
+  .ccap img{width:34px;height:34px;border-radius:50%;object-fit:cover;background:#fff;border:2px solid var(--c)}
+  .ccap b{font:800 18px Cinzel,serif;letter-spacing:.5px;color:#f3e7c9}
+  @media (max-width:600px){.ccap b{font-size:14px}.ccap img{width:26px;height:26px}.ccap{padding:4px 12px 4px 4px;gap:6px}}
+  @keyframes ccap{0%,40%{opacity:0;transform:translateX(-50%) scale(.6)}50%{opacity:1;transform:translateX(-50%) scale(1.08)}56%{transform:translateX(-50%) scale(1)}90%{opacity:1}100%{opacity:0}}
+  #board{transform-box:border-box}
+  /* v1.9 sticker emotes */
+  .emo img.emi{width:36px;height:36px;object-fit:contain;pointer-events:none}
+  .emo img.emi.hand{width:30px;height:auto}
+  .bub.img{width:64px;height:64px;background:none;box-shadow:none;right:-18px;top:-26px}
+  .bub.img img{width:64px;height:64px;filter:drop-shadow(0 6px 10px rgba(0,0,0,.55))}
+  .cm.emoline .tx img.chi{width:30px;height:30px;vertical-align:middle}
+  .pshow .phand.fh{width:auto;height:auto;border:0;border-radius:0;background:none;box-shadow:none}
+  .pshow .phand.fh img{width:62px;height:auto;display:block;filter:drop-shadow(0 0 3px var(--c)) drop-shadow(0 4px 8px rgba(0,0,0,.6));animation:poke2 .7s ease-in-out infinite}
+  @keyframes poke2{0%,100%{transform:translateX(0)}50%{transform:translateX(7px)}}
   /* phone game log sheet */
   .lsheet{display:none}
   .llarr{margin-left:auto;color:var(--muted);font-size:14px;padding-left:6px}
@@ -758,8 +773,12 @@ function renderBoard(){
   let arrows='';
   for(let a=0;a<N;a++){const[x,y]=stepXY(a);
     if(isStart(a)&&THEME==='fantasy'){const pl=PLAYERS[a/SEC],r2=SR+2.5;
-      s+=`<circle cx="${x}" cy="${y}" r="${r2+2.5}" fill="${pl.c}" opacity=".55"/><image href="${IMG['st_'+pl.faction]}" x="${x-r2}" y="${y-r2}" width="${2*r2}" height="${2*r2}"/>`+
-         `<circle cx="${x}" cy="${y}" r="${r2+.5}" fill="none" stroke="${pl.c}" stroke-width="2"/>`;
+      s+=`<circle cx="${x}" cy="${y+1.6}" r="${r2+2.2}" fill="#000" opacity=".45"/>`+                       // start tile: stone rim, colour ring, white ring, colour centre
+         `<circle cx="${x}" cy="${y}" r="${r2+2}" fill="#b3ada2" stroke="#5c5850" stroke-width=".9"/>`+
+         `<circle cx="${x}" cy="${y}" r="${r2-.2}" fill="${pl.c}" stroke="rgba(0,0,0,.35)" stroke-width=".7"/>`+
+         `<circle cx="${x}" cy="${y}" r="${r2*.7}" fill="#f3f5f7" stroke="rgba(0,0,0,.35)" stroke-width=".7"/>`+
+         `<circle cx="${x}" cy="${y}" r="${r2*.42}" fill="${pl.c}" stroke="rgba(0,0,0,.3)" stroke-width=".7"/>`+
+         `<circle cx="${x-r2*.25}" cy="${y-r2*.3}" r="${r2*.5}" fill="#fff" opacity=".12"/>`;
       continue;}
     if(isStart(a)){const pl=PLAYERS[a/SEC],rot=tangentDeg(a);   // arrow points along the direction of travel
       s+=`<circle cx="${x}" cy="${y}" r="${SR+3.5}" fill="${pl.c}" opacity=".35"/><circle cx="${x}" cy="${y}" r="${SR+1}" fill="${pl.c}" stroke="#fff" stroke-width="2.5"/>`+
@@ -771,15 +790,14 @@ function renderBoard(){
     else s+=`<circle cx="${x}" cy="${y}" r="${SR}" fill="#262c3b" stroke="#4a5266" stroke-width="1.3"/>`;
   }
   s+=arrows;
-  bd0.innerHTML=`<g id="bstat">${s}</g><g id="bdyn"></g>`;bd0._skey=skey;}
+  bd0.innerHTML=`<g id="bstat">${s}</g><g id="bdyn"></g><g id="bcut"></g>`;bd0._skey=skey;}
   let s='';
   // mines
   for(const a in S.mines){const[x,y]=stepXY(+a);const c=PLAYERS[S.mines[a]].c;
     s+= THEME==='fantasy'
-      ? `<g pointer-events="none"><circle cx="${x}" cy="${y}" r="${SR+9}" fill="url(#mglowg)" class="mglow" style="transform-origin:${x}px ${y}px;opacity:${DESIGN.mineGlow}"/>`+
-        `<circle cx="${x}" cy="${y+2}" r="${SR+1.5}" fill="#000" opacity=".5"/><image href="${IMG.mine}" x="${x-SR-3}" y="${y-SR-3}" width="${2*SR+6}" height="${2*SR+6}"/>`+
-        `<circle cx="${x}" cy="${y}" r="${SR+3}" fill="none" stroke="${c}" stroke-width="2"/>`+
-        `<circle cx="${x}" cy="${y}" r="4.2" fill="#ff1a1a" class="led"/><circle cx="${x-1.2}" cy="${y-1.2}" r="1.3" fill="#fff" opacity=".8"/></g>`
+      ? `<g pointer-events="none"><circle cx="${x}" cy="${y}" r="${SR+7}" fill="${c}" class="mglow" style="transform-origin:${x}px ${y}px;opacity:${.32*DESIGN.mineGlow/.9}"/>`+   // faction trap: net / keg / boulder trap
+        `<circle cx="${x}" cy="${y+2}" r="${SR+1}" fill="#000" opacity=".45"/><image href="/art/trap_${PLAYERS[S.mines[a]].faction}.webp" x="${x-SR-3}" y="${y-SR-3}" width="${2*SR+6}" height="${2*SR+6}"/>`+
+        `<circle cx="${x}" cy="${y}" r="${SR+3}" fill="none" stroke="${c}" stroke-width="2"/></g>`
       : mineSVG(x,y,c);}
   const mv=S.phase==='choose'?S.moves:[];
   // bench
@@ -790,7 +808,7 @@ function renderBoard(){
       else s+=`<circle cx="${x}" cy="${y}" r="10" fill="none" stroke="${tint(pl.c,.5)}" stroke-dasharray="2 2"/>`;}});
   // pawns on field / home, grouped by step
   const groups={};
-  S.pawns.forEach((ps,p)=>ps.forEach((rel,i)=>{if(rel<0)return;const k=p+':'+rel;(groups[k]=groups[k]||[]).push(i);}));
+  S.pawns.forEach((ps,p)=>ps.forEach((rel,i)=>{if(rel<0)return;if(S.hide&&S.hide.has(p+':'+i))return;const k=p+':'+rel;(groups[k]=groups[k]||[]).push(i);}));
   let hopG='';
   for(const k in groups){const[p,rel]=k.split(':').map(Number);const[x,y]=relXY(p,rel);const idx=groups[k];
     let attr='',ring='';
@@ -798,7 +816,7 @@ function renderBoard(){
       const ok=S.mineMode?mv.some(m=>m.t==='mine'&&m.from===rel):mv.some(m=>m.t==='move'&&m.from===rel);
       if(ok){attr=`class="can" data-act="${S.mineMode?'mine':'move'}" data-rel="${rel}"`;ring='class="pulse"';}}
     const hopping=S.anim&&S.anim.p===p&&S.pawns[p][S.anim.i]===rel;
-    const g=`<g ${hopping?'class="hop"':attr}><g transform="translate(${x},${y}) scale(${PS})">${pawnArt(p,idx.map(i=>i+1).sort(),idx.length,ring)}</g></g>`;
+    const g=`<g ${hopping?'id="hopg"':attr}><g transform="translate(${x},${y}) scale(${PS})">${pawnArt(p,idx.map(i=>i+1).sort(),idx.length,ring)}</g></g>`;
     if(hopping) hopG=g; else s+=g;
   }
   s+=hopG;                                   // the moving pawn is drawn on top
@@ -806,7 +824,7 @@ function renderBoard(){
     const occ=S.pawns.some((ps,q)=>ps.some(r=>r>=0&&r<=38&&abs(q,r)===+a));if(!occ)continue;
     const[x,y]=stepXY(+a),c=PLAYERS[S.mines[a]].c,ox=x+SR*.85,oy=y-SR*.85;
     s+=`<g pointer-events="none"><circle cx="${ox}" cy="${oy}" r="15" fill="url(#warnglow)" class="mglow" style="transform-origin:${ox}px ${oy}px"/>`+
-       (THEME==='fantasy'?`<image href="${IMG.mine}" x="${ox-9}" y="${oy-9}" width="18" height="18"/>`:`<circle cx="${ox}" cy="${oy}" r="8.5" fill="#2a2a2a" stroke="#000"/>`)+
+       (THEME==='fantasy'?`<image href="/art/trap_${PLAYERS[S.mines[a]].faction}.webp" x="${ox-9}" y="${oy-9}" width="18" height="18"/>`:`<circle cx="${ox}" cy="${oy}" r="8.5" fill="#2a2a2a" stroke="#000"/>`)+
        `<circle cx="${ox}" cy="${oy}" r="9.2" fill="none" stroke="${c}" stroke-width="1.8"/><circle cx="${ox}" cy="${oy}" r="4.2" fill="#ff1a1a" class="led"/></g>`;
   }
   // capture swing
@@ -1075,8 +1093,11 @@ async function play(ev){
   }
   if(ev.t==='hop'){
     const p=ev.p,i=ev.i;S.pawns[p][i]=ev.from;S.anim={p,i};
-    for(const rel of ev.path){S.pawns[p][i]=rel;if(ev.from===-1)sfx.spawn();else sfx.step();renderBoard();await sleep(200);}
+    const nx=queue[0],cut=nx&&nx.t==='capture'&&nx.p===p&&THEME==='fantasy'&&ANIM.cut&&!document.hidden;
+    const steps=cut?ev.path.slice(0,-1):ev.path;let prev=ev.from;
+    for(const rel of steps){const from=pawnXYanim(p,i,prev);S.pawns[p][i]=rel;if(ev.from===-1)sfx.spawn();else sfx.step();renderBoard();glideHop(from,relXY(p,rel));await sleep(HOPMS);prev=rel;}
     S.anim=null;
+    if(cut){try{await captureScene(p,i,prev,ev.path[ev.path.length-1],nx);}catch(e){console.error(e);S.hide=null;S.pawns[p][i]=ev.path[ev.path.length-1];renderBoard();}nx.played=true;}
     const g2=ev.s.game,last=ev.path[ev.path.length-1];
     if(g2&&last>38&&ev.from<=38&&laneTidy(g2.pawns[p])&&!g2.pawns[p].every(r=>r>=HOME0)) sfx.play('mmm');
     else if(g2&&last<=38&&!isOE(abs(p,last))){
@@ -1086,10 +1107,15 @@ async function play(ev){
     }
     return;
   }
+  if(ev.t==='capture'&&ev.played){applySnap(ev.s);renderBoard();return;}
   if(ev.t==='capture'){
     applySnap(ev.s);S.cfx={a:ev.a,p:ev.p,t:Date.now()};
     if(THEME==='fantasy'){sfx.hit(FACTIONS[PLAYERS[ev.p].faction].weapon);setTimeout(()=>sfx.grunt(FACTIONS[PLAYERS[ev.victim].faction].voice),330);}else sfx.capture();
     renderBoard();await sleep(800);S.cfx=null;return;
+  }
+  if(ev.t==='boom'&&THEME==='fantasy'&&typeof trapScene==='function'&&ANIM.cut&&!document.hidden){
+    try{await trapScene(ev);}catch(e){console.error(e);S.hide=null;const g=document.getElementById('bcut');if(g)g.innerHTML='';}
+    applySnap(ev.s);renderBoard();return;
   }
   if(ev.t==='boom'){
     applySnap(ev.s);S.fx={a:ev.a,t:Date.now()};sfx.boom();
@@ -1141,7 +1167,7 @@ function showHome(err){
     <div class="or">— or join with a code —</div>
     <div class="row"><input id="code" placeholder="CODE" maxlength="4" value="${esc(want)}" style="text-transform:uppercase;letter-spacing:4px;font-weight:700"><button data-act="join">Join</button><button data-act="watchjoin" title="Join as a watcher">👀</button></div>
     <div class="err" id="err">${esc(err||'')}</div>
-    <div class="hint" style="text-align:right">v1.8</div>
+    <div class="hint" style="text-align:right">v1.9</div>
   </div>`;
 }
 async function enterRoom(code,token){
@@ -1409,7 +1435,12 @@ document.addEventListener('keyup',e=>{ if(isSpace(e)&&e.target.tagName!=='INPUT'
 /* ===================== v1.4 interface: room screen, in-game layout, emotes, pointing, game over, statistics ===================== */
 const UI={diceFaces:true,roomView:false,endClosed:false,stats:false,statTab:'overview',statDice:'all',pointMode:false,lastPoint:0,bubbles:{},sheet:false,tray:false,seenChat:0,qr:false,lastGamePhase:null};
 const TAGLINE={elves:'Swift archers of the old forest.',dwarves:'Stubborn hammer-folk of the snowy peaks.',orcs:'War bands of the red desert.'};
-const EMOTES=[['🙏','Thanks'],['😠','Angry'],['😒','Annoyed'],['⏳','Come on'],['😂','Haha']];
+const EMOTES=[['cheer','Cheer'],['laugh','Haha'],['heehee','Hee-hee'],['flex','Flex'],['thanks','Thanks'],['hurry','Come on'],['annoyed','Annoyed'],['angry','Angry']];
+const EMOKEYS=EMOTES.map(x=>x[0]);
+const FPRE={elves:'elf',dwarves:'dwarf',orcs:'orc'};
+const facOf=p=>{const x=PLAYERS[p];return FPRE[(x&&x.faction)||['elves','dwarves','orcs'][((p|0)%3+3)%3]]||'elf';};
+const emoSrc=(p,k)=>`/art/e_${facOf(p)}_${k}.webp`;
+const emoImg=(p,k,cls)=>EMOKEYS.includes(k)?`<img class="${cls||'emi'}" src="${emoSrc(p,k)}" alt="${k}" draggable="false">`:esc(k);
 const hm=t=>{const d=new Date(t||Date.now());return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};
 const isPhone=()=>window.matchMedia('(max-width:600px)').matches;
 const pimg=p=>{const x=PLAYERS[p]||{};return IMG['p_'+(x.faction||'elves')];};
@@ -1471,7 +1502,7 @@ function renderChat(list){
     const tc=m.sys?'#8a93a6':esc(m.c);
     if(m.sys) return `<div class="cm sys"><span class="ct">${hm(m.ts)}</span><span>${esc(m.text)}</span></div>`;
     if(m.point) return `<div class="cm pt"><span class="ct" style="color:${tc}">${hm(m.ts)}</span><b style="color:${esc(m.c)}">${esc(m.name)}</b><span>👉 ${esc(m.text)}</span></div>`;
-    return `<div class="cm${m.emote?' emoline':''}"><span class="ct" style="color:${tc}">${hm(m.ts)}</span><b style="color:${esc(m.c)}">${esc(m.name)}</b><span class="tx">${esc(m.text)}</span></div>`;
+    return `<div class="cm${m.emote?' emoline':''}"><span class="ct" style="color:${tc}">${hm(m.ts)}</span><b style="color:${esc(m.c)}">${esc(m.name)}</b><span class="tx">${m.emote&&EMOKEYS.includes(m.text)?emoImg(m.seat,m.text,'chi'):esc(m.text)}</span></div>`;
   }).join('');
   for(const el of els){
     const atBottom=el.scrollHeight-el.scrollTop-el.clientHeight<40;
@@ -1493,8 +1524,8 @@ function emoBarHTML(){
   const inGame=V&&V.game&&V.game.phase!=='over'&&!roomVisible();
   const cd=Math.max(0,Math.ceil((UI.lastPoint+5000-Date.now())/1000));
   const me=PLAYERS[ME]||{c:'#f2c94c'};
-  let h=EMOTES.map(([e,l])=>`<button class="emo" data-ui="emote" data-e="${e}" title="${l}" aria-label="${l}" ${ME<0?'disabled':''}>${e}</button>`).join('');
-  if(inGame) h+=`<button class="emo pointb${cd?' cool':''}" data-ui="point" style="--c:${me.c}" ${ME<0||cd?'disabled':''} aria-label="Point at a pawn">👉<span>${cd?cd+'s':'Point'}</span></button>`;
+  let h=EMOTES.map(([e,l])=>`<button class="emo" data-ui="emote" data-e="${e}" title="${l}" aria-label="${l}" ${ME<0?'disabled':''}>${emoImg(ME<0?0:ME,e)}</button>`).join('');
+  if(inGame) h+=`<button class="emo pointb${cd?' cool':''}" data-ui="point" style="--c:${me.c}" ${ME<0||cd?'disabled':''} aria-label="Point at a pawn"><img class="emi hand" src="/art/e_${facOf(ME<0?0:ME)}_hand.webp" alt=""><span>${cd?cd+'s':'Point'}</span></button>`;
   return h;
 }
 function renderEmoBars(){const h=emoBarHTML();document.querySelectorAll('.emobar').forEach(el=>{if(el.innerHTML!==h)el.innerHTML=h;});}
@@ -1515,7 +1546,7 @@ function showPoint(from,p,i){
   const hx=pos[0]*W-Math.cos(ang)*off,hy=pos[1]*W-Math.sin(ang)*off;
   const el=document.createElement('div');el.className='pshow';
   el.innerHTML=`<div class="pring" style="left:${pos[0]*100}%;top:${pos[1]*100}%;border-color:${c}"></div>`+
-    `<div class="phand" style="left:${hx}px;top:${hy}px;background:${c};transform:translate(-50%,-50%) rotate(${deg}deg)${Math.abs(deg)>90?' scaleY(-1)':''}"><span>👉</span></div>`;
+    `<div class="phand fh" style="left:${hx}px;top:${hy}px;--c:${c};transform:translate(-50%,-50%) rotate(${deg}deg)${Math.abs(deg)>90?' scaleY(-1)':''}"><img src="/art/e_${facOf(from)}_hand.webp" alt=""></div>`;
   lay.appendChild(el);setTimeout(()=>el.remove(),1500);
 }
 function renderPointMode(){
@@ -1547,7 +1578,7 @@ function renderPlayers(){
       <div class="pring2" data-p="${p}">${portrait(p,0)}</div>
       <div class="pinfo"><div class="pname">${esc(x.name)}${p===ME?'<span class="you">you</span>':''}${x.bot?' <span class="tag">🤖</span>':''}</div>
         <div class="ppips" aria-label="${home} of 4 pawns home" title="Pawns home">${[0,1,2,3].map(j=>`<i class="${j<home?'on':''}"></i>`).join('')}<span class="pst">${status}</span></div></div>
-      ${bub?`<div class="bub"><span>${bub.e}</span></div>`:''}</div>`;
+      ${bub?`<div class="bub${EMOKEYS.includes(bub.e)?' img':''}">${EMOKEYS.includes(bub.e)?emoImg(p,bub.e,'bubi'):`<span>${esc(bub.e)}</span>`}</div>`:''}</div>`;
   }).join('');
   if(a&&a.innerHTML!==h)a.innerHTML=h;
   if(b&&b.innerHTML!==h)b.innerHTML=h;
@@ -1892,7 +1923,10 @@ function renderDesign(){
     <b>Test sounds</b><div class="row" style="flex-wrap:wrap;gap:5px">${[['dice','🎲 Dice'],['step','👣 Step'],['spawn','Spawn'],['hit-elves','Elf hit'],['hit-dwarves','Dwarf hit'],['hit-orcs','Orc hit'],['grunt-elves','Elf death'],['grunt-dwarves','Dwarf death'],['grunt-orcs','Orc death'],['boom','💥 Boom'],['mmm','Mmmm'],['ahem','Ahem'],['drumroll','🥁 Drum roll'],['victory','🏆 Victory']].map(([k,n])=>`<button data-dact="snd" data-k="${k}" style="padding:5px 8px;font-size:12px">${n}</button>`).join('')}</div>`;
   if(sTab==='opts'){
     const run=V&&V.game&&V.game.phase!=='over', can=HOST&&!run, dis=can?'':'disabled';
-    h+=`<b>Invite friends</b><div class="row" style="flex-wrap:wrap;gap:8px"><button data-dact="invite">📨 ${navigator.share&&isPhone()?'Share link':'Copy link'}</button><button data-dact="sqr" class="${UI.sqr?'on':''}">QR code</button></div>
+    h+=`<b>Animations <span style="font-weight:400;color:var(--muted);font-size:12px">· just for you</span></b>
+    <label>Capture cutscenes</label><div class="seg"><button data-dact="anim" data-k="cut" data-v="1" class="${ANIM.cut?'on':''}">On</button><button data-dact="anim" data-k="cut" data-v="0" class="${ANIM.cut?'':'on'}">Off</button></div>
+    <label>Zoom in on fights</label><div class="seg"><button data-dact="anim" data-k="zoom" data-v="0" class="${ANIM.zoom?'':'on'}">Off</button><button data-dact="anim" data-k="zoom" data-v="1" class="${ANIM.zoom?'on':''}">On</button></div>
+    <b>Invite friends</b><div class="row" style="flex-wrap:wrap;gap:8px"><button data-dact="invite">📨 ${navigator.share&&isPhone()?'Share link':'Copy link'}</button><button data-dact="sqr" class="${UI.sqr?'on':''}">QR code</button></div>
     ${UI.sqr?'<div id="sqrbox" style="align-self:center;background:#fff;padding:10px;border-radius:10px;width:max-content"></div>':''}
     <div class="hint">Room <b>${esc(V?V.code:'')}</b>. ${V&&V.game&&V.game.phase!=='over'?'Friends who join now can watch, and take over a bot to play.':'Friends who join get a free seat, or watch if the room is full.'}</div>
     <b>Game options</b>
@@ -1951,6 +1985,219 @@ function fmtClock(ms){const s=Math.floor(ms/1000),h=Math.floor(s/3600),m=Math.fl
 function tickClock(){const el=document.getElementById('gclock');if(!el)return;const ms=gameElapsed();
   if(!CLOCK||ms==null){el.style.display='none';return;}el.style.display='block';el.textContent='🕒 '+fmtClock(ms);}
 setInterval(tickClock,1000);
+</script>
+<script>
+/* ===================== v1.9: gliding hops + capture cutscenes ===================== */
+const HOPMS=220;
+let ANIM={cut:true,zoom:false};
+try{const a=JSON.parse(localStorage.getItem('ludo:anim')||'null');if(a)ANIM={...ANIM,...a};}catch(e){}
+const saveAnim=()=>{try{localStorage.setItem('ludo:anim',JSON.stringify(ANIM));}catch(e){}};
+function pawnXYanim(p,i,rel){
+  if(rel>=0) return relXY(p,rel);
+  const bench=[];S.pawns[p].forEach((r,j)=>{if(r<0||j===i)bench.push(j);});
+  return benchXY(p,Math.max(0,bench.indexOf(i)));
+}
+function glideHop(from,to){
+  const el=document.getElementById('hopg');if(!el||!el.animate||!from)return;
+  const dx=from[0]-to[0],dy=from[1]-to[1];if(!dx&&!dy)return;
+  el.style.transformOrigin=`${to[0]}px ${to[1]}px`;
+  el.animate([{transform:`translate(${dx}px,${dy}px) scale(1)`},{transform:`translate(${dx/2}px,${dy/2-9}px) scale(1.16)`,offset:.5},{transform:'translate(0px,0px) scale(1)'}],{duration:HOPMS-15,easing:'ease-in-out'});
+}
+const CUT={verb:{elves:'shot',dwarves:'smashed',orcs:'chopped'},one:{elves:'an Elf',dwarves:'a Dwarf',orcs:'an Orc'},fx:{elves:'#8dff7a',dwarves:'#cfd8e6',orcs:'#ff6a1a'}};
+function an(el,frames,dur,delay,extra){if(!el||!el.animate)return null;return el.animate(frames,{duration:dur,delay:delay||0,fill:'both',easing:'linear',...(extra||{})});}
+const T=(x,y,ex)=>`translate(${x.toFixed(1)}px,${y.toFixed(1)}px)${ex||''}`;
+async function captureScene(p,i,fromRel,toRel,cev){
+  const bd=document.getElementById('board'),g=document.getElementById('bcut');
+  const finish=()=>{if(g)g.innerHTML='';S.hide=null;S.pawns[p][i]=toRel;vic.forEach(([q,j])=>S.pawns[q][j]=-1);renderBoard();};
+  const a=cev.a,vq=cev.victim,vic=[];
+  S.pawns.forEach((ps,q)=>{if(q===p)return;ps.forEach((r,j)=>{if(r>=0&&r<=38&&abs(q,r)===a)vic.push([q,j]);});});
+  if(!g||!bd){finish();return;}
+  const fac=PLAYERS[p].faction,vf=(PLAYERS[vq]||{}).faction||'orcs',kind=fac==='elves'?'e':fac==='dwarves'?'d':'o';
+  const A=pawnXYanim(p,i,fromRel),V=stepXY(a);
+  const SPC=Math.hypot(stepXY(1)[0]-stepXY(0)[0],stepXY(1)[1]-stepXY(0)[1]);
+  const side=kind==='e'?offPt(a-.2,SPC*1.5):offPt(a-.5,SPC*1.5);
+  const PD=21.2*PS,dist=Math.hypot(V[0]-side[0],V[1]-side[1]);
+  const ang=Math.atan2(V[1]-side[1],V[0]-side[0])*180/Math.PI;
+  let base=ang+90;base=((base+180)%360+360)%360-180;
+  const sg=base>=0?1:-1,wind=base-sg*(kind==='d'?150:125),hit=base+sg*8;   // raised behind, swung over the top onto the victim
+  const fc=CUT.fx[fac],col=PLAYERS[p].c;
+  S.hide=new Set([p+':'+i,...vic.map(([q,j])=>q+':'+j)]);renderBoard();
+  // ---- build the overlay ----
+  let w='';
+  if(kind==='e'){
+    const BH=PD*2.7,BW=BH*60/300,BDW=BH*114/300,XR=PD*.55+BW*.65,AW=PD*3,AH=AW*27/240;
+    w=`<g id="c_bow" style="transform:${T(side[0],side[1],` rotate(${ang}deg)`)};opacity:0"><image id="c_br" href="/art/bow.webp" x="${PD*.55-BW*.35}" y="${-BH/2}" width="${BW}" height="${BH}"/><image id="c_bd" href="/art/bow_drawn.webp" x="${XR-BDW}" y="${-BH/2}" width="${BDW}" height="${BH}" opacity="0"/></g>`+
+      `<g id="c_arr" style="opacity:0"><rect x="${-AW*2}" y="-2" width="${AW*1.3}" height="4" rx="2" fill="url(#c_trail)" id="c_trl" opacity="0"/><image href="/art/arrow.webp" x="${-(AW-6)}" y="${-AH/2}" width="${AW}" height="${AH}"/></g>`;
+  }else{
+    const img=kind==='d'?['hammer',140]:['axe',165],hc=kind==='d'?.86:.8,gf=.1,hh=Math.max(PD*1.6,Math.min(PD*3.2,dist/(hc-gf))),ww=hh*img[1]/300,gr=gf*hh;   // held near the end of the handle
+    const r=dist*.75,pt=t=>[side[0]+r*Math.sin(t*Math.PI/180),side[1]-r*Math.cos(t*Math.PI/180)],p0=pt(wind),p1=pt(hit),large=Math.abs(hit-wind)>180?1:0,sw=hit>wind?1:0;
+    w=`<path id="c_blur" d="M${p0[0]},${p0[1]} A${r},${r} 0 ${large} ${sw} ${p1[0]},${p1[1]}" fill="none" stroke="${col}" stroke-width="${PD*.55}" stroke-linecap="round" opacity="0"/>`+
+      `<g id="c_w" style="transform-origin:${side[0]}px ${side[1]}px;opacity:0"><image href="/art/${img[0]}.webp" x="${side[0]-ww/2}" y="${side[1]-hh+gr}" width="${ww}" height="${hh}"/></g>`;
+  }
+  const parts=[...Array(10)].map((_,k)=>{const an2=k/10*Math.PI*2+.3,d=PD*(1+(k%3)*.5);return `<rect class="c_pt" style="transform-box:fill-box;transform-origin:center" data-dx="${Math.cos(an2)*d}" data-dy="${Math.sin(an2)*d}" x="${V[0]-2.5}" y="${V[1]-2.5}" width="5" height="${kind==='o'?9:5}" rx="1.2" fill="${kind==='d'?'#8d96a6':kind==='o'?'#ffb347':fc}" opacity="0"/>`;}).join('');
+  const extra=kind==='o'?`<g id="c_sl" opacity="0"><path d="M${V[0]-PD},${V[1]-PD*.8} L${V[0]+PD},${V[1]+PD*.8} M${V[0]-PD},${V[1]+PD*.8} L${V[0]+PD},${V[1]-PD*.8}" stroke="#ff4a1c" stroke-width="${PD*.22}" stroke-linecap="round"/><path d="M${V[0]-PD},${V[1]-PD*.8} L${V[0]+PD},${V[1]+PD*.8} M${V[0]-PD},${V[1]+PD*.8} L${V[0]+PD},${V[1]-PD*.8}" stroke="#ffd2a8" stroke-width="${PD*.07}" stroke-linecap="round"/></g>`
+    :kind==='d'?`<g id="c_sl" opacity="0"><ellipse cx="${V[0]}" cy="${V[1]+PD*.3}" rx="${PD*1.4}" ry="${PD*.6}" fill="rgba(190,170,140,.55)"/><path d="M${V[0]},${V[1]} l${-PD*.9},${-PD*.6} M${V[0]},${V[1]} l${PD},${-PD*.3} M${V[0]},${V[1]} l${PD*.3},${PD} M${V[0]},${V[1]} l${-PD},${PD*.4}" stroke="#0b0d12" stroke-width="2" fill="none" stroke-linecap="round"/></g>`:'';
+  g.innerHTML=`<defs><radialGradient id="c_vig" cx="${CX}" cy="${CY}" r="${Math.max(VW,VH)*.62}" gradientUnits="userSpaceOnUse"><stop offset=".62" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".62"/></radialGradient>`+
+    `<radialGradient id="c_fl"><stop offset="0" stop-color="#fff"/><stop offset=".4" stop-color="${fc}"/><stop offset="1" stop-color="${fc}" stop-opacity="0"/></radialGradient>`+
+    `<linearGradient id="c_trail"><stop offset="0" stop-color="#8dff7a" stop-opacity="0"/><stop offset="1" stop-color="#8dff7a" stop-opacity=".8"/></linearGradient></defs>`+
+    `<rect id="c_vg" x="0" y="0" width="${VW}" height="${VH}" fill="url(#c_vig)" opacity="0" pointer-events="none" clip-path="url(#boardclip)"/>`+
+    `<g id="c_v" style="transform:${T(V[0],V[1])}"><g transform="scale(${PS})">${pawnArt(vq,vic.map(([q,j])=>j+1).sort(),vic.length||1,'')}</g></g>`+
+    w+`<g id="c_a" style="transform:${T(A[0],A[1])}"><g transform="scale(${PS})">${pawnArt(p,[i+1],1,'')}</g></g>`+
+    `<circle id="c_fl1" cx="${V[0]}" cy="${V[1]}" r="${PD*1.3}" fill="url(#c_fl)" opacity="0" style="transform-origin:${V[0]}px ${V[1]}px"/>`+
+    `<circle class="c_rg" cx="${V[0]}" cy="${V[1]}" r="${PD}" fill="none" stroke="${fc}" stroke-width="3" opacity="0" style="transform-origin:${V[0]}px ${V[1]}px"/>`+
+    `<circle class="c_rg" cx="${V[0]}" cy="${V[1]}" r="${PD}" fill="none" stroke="${fc}" stroke-width="2" opacity="0" style="transform-origin:${V[0]}px ${V[1]}px"/>`+
+    extra+parts+`<circle id="c_cl" cx="${V[0]}" cy="${V[1]}" r="${PD*.75}" fill="none" stroke="${col}" stroke-width="3" opacity="0" style="transform-origin:${V[0]}px ${V[1]}px"/>`;
+  const $=id=>document.getElementById(id);
+  const HIT=480;
+  // vignette + optional zoom
+  an($('c_vg'),[{opacity:0},{opacity:1,offset:.1},{opacity:1,offset:.85},{opacity:0}],1550);
+  if(ANIM.zoom&&bd.animate){const Z=isPhone()?1.6:1.3,cx=(side[0]+V[0])/2/VW*100,cy=(side[1]+V[1])/2/VH*100;
+    bd.style.transformOrigin=`${cx}% ${cy}%`;bd.animate([{transform:'scale(1)'},{transform:`scale(${Z})`,offset:.11},{transform:`scale(${Z})`,offset:.8},{transform:'scale(1)'}],{duration:1550,easing:'ease-in-out'});}
+  // attacker: step inside the ring next to the victim, strike, then claim the tile
+  const mid=(P,Q,l)=>[(P[0]+Q[0])/2,(P[1]+Q[1])/2-l];
+  const m1=mid(A,side,PD*.6),m2=mid(side,V,PD*.7),lunge=[(side[0]*2+V[0])/3,(side[1]*2+V[1])/3];
+  const ak=kind==='e'
+    ?[{transform:T(A[0],A[1]),offset:0},{transform:T(m1[0],m1[1],' scale(1.3)'),offset:.05},{transform:T(side[0],side[1],' scale(1.12)'),offset:.1},{transform:T(side[0],side[1],' scale(1.12)'),offset:.6}]
+    :[{transform:T(A[0],A[1]),offset:0},{transform:T(m1[0],m1[1],' scale(1.3)'),offset:.05},{transform:T(side[0],side[1],' scale(1.12)'),offset:.1},{transform:T(side[0],side[1],' scale(1.12)'),offset:.25},{transform:T(side[0],side[1],' scale(1.2)'),offset:.31},{transform:T(side[0],side[1],' scale(1.12)'),offset:.38},{transform:T(side[0],side[1],' scale(1.12)'),offset:.6}];
+  ak.push({transform:T(m2[0],m2[1],' scale(1.35)'),offset:.66},{transform:T(V[0],V[1],' scale(.92)'),offset:.72},{transform:T(V[0],V[1],' scale(1.08)'),offset:.77},{transform:T(V[0],V[1]),offset:1});
+  an($('c_a'),ak,1550);
+  // victim: white freeze on the hit, then cracks and flies off toward its bench
+  const ox=V[0]-CX,oy=V[1]-CY,lo=Math.hypot(ox,oy)||1,fly=[V[0]+ox/lo*PD*3+oy/lo*PD,V[1]+oy/lo*PD*3-ox/lo*PD];
+  an($('c_v'),[{transform:T(V[0],V[1]),filter:'none',opacity:1,offset:0},{transform:T(V[0],V[1]),filter:'none',offset:HIT/1550},{transform:T(V[0],V[1],' scale(1.2)'),filter:'brightness(0) invert(1) drop-shadow(0 0 1px #000)',offset:(HIT+10)/1550},{transform:T(V[0],V[1],' scale(1.2)'),filter:'brightness(0) invert(1) drop-shadow(0 0 1px #000)',offset:(HIT+90)/1550},{transform:T(V[0]+3,V[1]-2),filter:'grayscale(1)',opacity:1,offset:(HIT+130)/1550},{transform:T(fly[0],fly[1],' rotate(600deg) scale(.5)'),filter:'grayscale(1)',opacity:0,offset:(HIT+470)/1550},{transform:T(fly[0],fly[1]),opacity:0,offset:1}],1550);
+  // weapon
+  if(kind==='e'){
+    an($('c_bow'),[{opacity:0},{opacity:0,offset:.1},{opacity:1,offset:.14},{opacity:1,offset:.5},{opacity:0,offset:.6},{opacity:0}],1550);
+    an($('c_bd'),[{opacity:0},{opacity:0,offset:.15},{opacity:1,offset:.151},{opacity:1,offset:.28},{opacity:0,offset:.281},{opacity:0}],1550);
+    an($('c_br'),[{opacity:1},{opacity:1,offset:.15},{opacity:0,offset:.151},{opacity:0,offset:.28},{opacity:1,offset:.281},{opacity:1}],1550);
+    const ux=Math.cos(ang*Math.PI/180),uy=Math.sin(ang*Math.PI/180),s0=[side[0]+ux*PD*.3,side[1]+uy*PD*.3],e0=[V[0]-ux*PD*.4,V[1]-uy*PD*.4];
+    an($('c_arr'),[{transform:T(s0[0],s0[1],` rotate(${ang}deg)`),opacity:0},{transform:T(s0[0],s0[1],` rotate(${ang}deg)`),opacity:0,offset:.15},{transform:T(s0[0],s0[1],` rotate(${ang}deg)`),opacity:1,offset:.16},{transform:T(s0[0]-ux*PD*.3,s0[1]-uy*PD*.3,` rotate(${ang}deg)`),opacity:1,offset:.27},{transform:T(e0[0],e0[1],` rotate(${ang}deg)`),opacity:1,offset:HIT/1550},{transform:T(e0[0],e0[1],` rotate(${ang}deg)`),opacity:1,offset:.38},{transform:T(fly[0],fly[1],` rotate(${ang+300}deg)`),opacity:0,offset:.62},{opacity:0,transform:T(fly[0],fly[1])}],1550);
+    an($('c_trl'),[{opacity:0},{opacity:0,offset:.27},{opacity:1,offset:.29},{opacity:0,offset:.36},{opacity:0}],1550);
+  }else{
+    an($('c_w'),[{opacity:0,transform:`rotate(${base}deg) scale(.6)`},{opacity:0,transform:`rotate(${base}deg) scale(.6)`,offset:.1},{opacity:1,transform:`rotate(${wind+sg*20}deg) scale(1)`,offset:.15},{opacity:1,transform:`rotate(${wind}deg)`,offset:.24},{opacity:1,transform:`rotate(${hit}deg)`,offset:HIT/1550},{opacity:1,transform:`rotate(${hit-sg*6}deg)`,offset:.36},{opacity:1,transform:`rotate(${hit-sg*6}deg)`,offset:.48},{opacity:0,transform:`rotate(${hit-sg*40}deg) scale(.7)`,offset:.58},{opacity:0}],1550);
+    an($('c_blur'),[{opacity:0},{opacity:0,offset:.25},{opacity:.75,offset:HIT/1550},{opacity:.3,offset:.37},{opacity:0,offset:.42},{opacity:0}],1550);
+  }
+  // impact effects (after the freeze)
+  const IM=(HIT+90)/1550;
+  an($('c_fl1'),[{opacity:0,transform:'scale(.3)'},{opacity:0,transform:'scale(.3)',offset:IM},{opacity:1,transform:'scale(1.1)',offset:IM+.03},{opacity:0,transform:'scale(1.6)',offset:IM+.15},{opacity:0}],1550);
+  document.querySelectorAll('#bcut .c_rg').forEach((el,k)=>an(el,[{opacity:0,transform:'scale(.3)'},{opacity:0,transform:'scale(.3)',offset:IM+k*.05},{opacity:1,transform:'scale(.5)',offset:IM+k*.05+.02},{opacity:0,transform:`scale(${kind==='d'?3:2})`,offset:IM+k*.05+.25},{opacity:0}],1550));
+  document.querySelectorAll('#bcut .c_pt').forEach(el=>an(el,[{opacity:0,transform:'translate(0px,0px)'},{opacity:0,transform:'translate(0px,0px)',offset:IM},{opacity:1,offset:IM+.02},{opacity:0,transform:`translate(${el.dataset.dx}px,${el.dataset.dy}px) rotate(200deg)`,offset:IM+.25},{opacity:0}],1550));
+  an($('c_sl'),[{opacity:0},{opacity:0,offset:IM-.03},{opacity:1,offset:IM},{opacity:.8,offset:.7},{opacity:0,offset:.85},{opacity:0}],1550);
+  an($('c_cl'),[{opacity:0,transform:'scale(.5)'},{opacity:0,transform:'scale(.5)',offset:.72},{opacity:1,transform:'scale(.9)',offset:.74},{opacity:0,transform:'scale(2)',offset:.92},{opacity:0}],1550);
+  const amp=kind==='d'?7:kind==='o'?4:2,ms=IM*1550;
+  setTimeout(()=>{if(bd.animate&&!ANIM.zoom)bd.animate([{transform:'none'},{transform:`translate(${amp}px,${-amp/2}px)`},{transform:`translate(${-amp}px,${amp/2}px)`},{transform:`translate(${amp/2}px,${amp}px)`},{transform:'none'}],{duration:160});},ms);
+  // sounds
+  if(kind==='e'){setTimeout(()=>bowsfx.draw(),1550*.15);setTimeout(()=>bowsfx.release(),1550*.28);setTimeout(()=>bowsfx.hit(),HIT);}
+  else setTimeout(()=>sfx.hit(FACTIONS[fac].weapon),HIT-30);
+  setTimeout(()=>sfx.grunt(FACTIONS[vf].voice),HIT+110);
+  setTimeout(()=>sfx.step(),1550*.72);
+  // caption over the board
+  const bw=document.querySelector('.boardwrap');let cap=null;
+  if(bw){cap=document.createElement('div');cap.className='ccap';cap.style.setProperty('--c',col);
+    cap.innerHTML=`<img src="${IMG['p_'+fac]}" alt=""><b>${FACTIONS[fac].name} ${CUT.verb[fac]} ${vq===ME?'your pawn':CUT.one[vf]}!</b>`;if(V[1]>CY+VH*.15){cap.style.bottom='auto';cap.style.top='7%';}bw.appendChild(cap);setTimeout(()=>cap.remove(),1650);}
+  await sleep(1550);
+  finish();
+}
+// settings: animations are a personal choice
+document.addEventListener('click',e=>{const b=e.target.closest('[data-dact="anim"]');if(!b)return;e.stopPropagation();ANIM[b.dataset.k]=b.dataset.v==='1';saveAnim();renderDesign();});
+</script>
+<script>
+/* ===================== v1.9: faction traps (net, powder keg, boulder) ===================== */
+const TRAP={elves:{verb:'net caught',kind:'net'},dwarves:{verb:'keg blew up',kind:'keg'},orcs:{verb:'boulder crushed',kind:'boulder'}};
+const ONE={elves:'an Elf',dwarves:'a Dwarf',orcs:'an Orc'},MANY={elves:'Elves',dwarves:'Dwarves',orcs:'Orcs'};
+const bowsfx={
+  draw(){if(!sfx.ok())return;sfx.burst('bandpass',700,6,.12,.22,1100);sfx.tone(160,210,.06,.22,'triangle');},
+  release(){if(!sfx.ok())return;sfx.tone(240,180,.28,.16,'triangle');sfx.tone(480,360,.1,.12,'sine');sfx.burst('bandpass',2600,3,.18,.04);setTimeout(()=>sfx.burst('highpass',2500,.8,.2,.13,6000),25);},
+  hit(){if(!sfx.ok())return;sfx.tone(180,70,.4,.1);sfx.burst('lowpass',900,1,.35,.07);setTimeout(()=>sfx.tone(1300,2200,.05,.18,'sine'),20);}
+};
+const tsfx={
+  net(){if(!sfx.ok())return;sfx.burst('highpass',900,.7,.35,.28,5200);setTimeout(()=>{sfx.tone(1500,420,.18,.09,'triangle');sfx.burst('bandpass',3000,6,.2,.05);},230);setTimeout(()=>sfx.burst('bandpass',4200,1,.22,.35),430);},
+  boulder(){if(!sfx.ok())return;sfx.tone(900,260,.12,.3,'sine');setTimeout(()=>{sfx.tone(85,38,.85,.45);sfx.burst('lowpass',700,.8,.9,.4,120);},330);setTimeout(()=>{for(let k=0;k<5;k++)setTimeout(()=>sfx.burst('bandpass',500+Math.random()*900,2,.25,.08),k*55);},400);},
+  keg(){if(!sfx.ok())return;for(let k=0;k<7;k++)setTimeout(()=>sfx.burst('highpass',4500+Math.random()*2500,1,.12+Math.random()*.08,.05),k*45);setTimeout(()=>sfx.boom(),330);}
+};
+async function trapScene(ev){
+  const g=document.getElementById('bcut'),bd=document.getElementById('board');if(!g||!bd)return;
+  const a=ev.a,own=PLAYERS[ev.owner]||PLAYERS[0],fac=own.faction||'dwarves',kind=(TRAP[fac]||TRAP.dwarves).kind,col=own.c;
+  const V=stepXY(a),PD=21.2*PS,DUR=1700;
+  const vic=[];S.pawns.forEach((ps,q)=>ps.forEach((r,j)=>{if(r>=0&&r<=38&&abs(q,r)===a)vic.push([q,j]);}));
+  const vq=vic.length?vic[0][0]:(Object.keys(ev.vic||{})[0]|0),vf=(PLAYERS[vq]||{}).faction||'orcs';
+  S.hide=new Set(vic.map(([q,j])=>q+':'+j));const mine=S.mines[a];delete S.mines[a];renderBoard();
+  const ox=V[0]-CX,oy=V[1]-CY,lo=Math.hypot(ox,oy)||1,ux=ox/lo,uy=oy/lo;
+  const pawnG=`<g id="t_v" style="transform:${T(V[0],V[1])}"><g transform="scale(${PS})">${pawnArt(vq,vic.filter(([q])=>q===vq).map(([q,j])=>j+1).sort(),Math.max(1,vic.filter(([q])=>q===vq).length),'')}</g></g>`;
+  const TS=2*SR+6,tok=`<g id="t_tok" style="transform-origin:${V[0]}px ${V[1]}px"><image href="/art/trap_${fac}.webp" x="${V[0]-TS/2}" y="${V[1]-TS/2}" width="${TS}" height="${TS}"/><circle cx="${V[0]}" cy="${V[1]}" r="${SR+3}" fill="none" stroke="${col}" stroke-width="2"/></g>`;
+  const parts=(n,colr,w,h)=>[...Array(n)].map((_,k)=>{const an2=k/n*Math.PI*2+.3,d=PD*(1.2+(k%4)*.45);return `<rect class="t_pt" style="transform-box:fill-box;transform-origin:center" data-dx="${Math.cos(an2)*d}" data-dy="${Math.sin(an2)*d}" x="${V[0]-w/2}" y="${V[1]-h/2}" width="${w}" height="${h}" rx="1.2" fill="${colr[k%colr.length]}" opacity="0"/>`;}).join('');
+  let fx='';
+  if(kind==='net') fx=`<line id="t_rope" x1="${V[0]}" y1="${V[1]}" x2="${V[0]}" y2="${V[1]-PD*14}" stroke="#9dffa8" stroke-width="1.6" opacity="0" style="filter:drop-shadow(0 0 2px #45c463)"/>`+parts(12,['#5fd36e','#d6b44a'],5,3);
+  if(kind==='boulder') fx=`<ellipse id="t_sh" cx="${V[0]}" cy="${V[1]+PD*.2}" rx="${PD*1.1}" ry="${PD*.45}" fill="#000" opacity="0" style="transform-origin:${V[0]}px ${V[1]}px"/>`+
+     `<g id="t_ck" opacity="0"><ellipse cx="${V[0]}" cy="${V[1]+PD*.25}" rx="${PD*1.7}" ry="${PD*.7}" fill="rgba(200,180,150,.6)"/><path d="M${V[0]},${V[1]} l${-PD*1.1},${-PD*.6} M${V[0]},${V[1]} l${PD*1.2},${-PD*.4} M${V[0]},${V[1]} l${PD*.4},${PD*1.1} M${V[0]},${V[1]} l${-PD*1.2},${PD*.5}" stroke="#0b0d12" stroke-width="1.6" fill="none" stroke-linecap="round"/></g>`+parts(12,['#8d7f70','#6b5a48'],4,4);
+  if(kind==='keg') fx=`<circle id="t_sc" cx="${V[0]}" cy="${V[1]}" r="${PD*.9}" fill="url(#t_scg)" opacity="0"/><circle id="t_sp" cx="${V[0]+TS*.12}" cy="${V[1]-TS*.48}" r="${PD*.22}" fill="url(#t_spg)" opacity="0" style="transform-origin:${V[0]+TS*.12}px ${V[1]-TS*.48}px"/>`;
+  const after=kind==='boulder'?`<g id="t_b" opacity="0" style="transform-origin:${V[0]}px ${V[1]}px"><image href="/art/boulder.webp" x="${V[0]-PD*1.35}" y="${V[1]-PD*2.2}" width="${PD*2.7}" height="${PD*2.5}"/></g>`
+    :kind==='net'?`<g id="t_net" opacity="0" style="transform-origin:${V[0]}px ${V[1]}px"><image href="/art/trap_elves.webp" x="${V[0]-PD*.85}" y="${V[1]-PD*.85}" width="${PD*1.7}" height="${PD*1.7}" style="filter:drop-shadow(0 0 2px #78ff8c)"/></g>`
+    :`<circle id="t_fb" cx="${V[0]}" cy="${V[1]}" r="${PD*1.6}" fill="url(#t_fbg)" opacity="0" style="transform-origin:${V[0]}px ${V[1]}px"/><circle id="t_sm" cx="${V[0]}" cy="${V[1]}" r="${PD*1.8}" fill="url(#t_smg)" opacity="0" style="transform-origin:${V[0]}px ${V[1]}px"/>`+parts(14,['#3a3a3a','#ffb23a','#6b4a2a','#ff5a14'],5,5);
+  g.innerHTML=`<defs><radialGradient id="c_vig" cx="${CX}" cy="${CY}" r="${Math.max(VW,VH)*.62}" gradientUnits="userSpaceOnUse"><stop offset=".62" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".62"/></radialGradient>`+
+    `<radialGradient id="t_fbg"><stop offset="0" stop-color="#fff3b0"/><stop offset=".35" stop-color="#ffb23a"/><stop offset=".65" stop-color="#ff5a14"/><stop offset="1" stop-color="#ff5a14" stop-opacity="0"/></radialGradient>`+
+    `<radialGradient id="t_smg"><stop offset="0" stop-color="#46403c" stop-opacity=".85"/><stop offset=".5" stop-color="#322e2c" stop-opacity=".55"/><stop offset="1" stop-color="#322e2c" stop-opacity="0"/></radialGradient>`+
+    `<radialGradient id="t_scg"><stop offset="0" stop-color="#0a0604" stop-opacity=".85"/><stop offset=".5" stop-color="#1e120a" stop-opacity=".5"/><stop offset="1" stop-color="#1e120a" stop-opacity="0"/></radialGradient>`+
+    `<radialGradient id="t_spg"><stop offset="0" stop-color="#fff"/><stop offset=".4" stop-color="#ffd23f"/><stop offset=".7" stop-color="#ff7a1a"/><stop offset="1" stop-color="#ff7a1a" stop-opacity="0"/></radialGradient>`+
+    `<radialGradient id="t_flg"><stop offset="0" stop-color="#fff"/><stop offset=".4" stop-color="${kind==='net'?'#b8ffae':'#fff6c8'}"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>`+
+    `<rect id="c_vg" x="0" y="0" width="${VW}" height="${VH}" fill="url(#c_vig)" opacity="0" pointer-events="none" clip-path="url(#boardclip)"/>`+
+    (kind==='keg'?fx:'')+tok+(kind!=='keg'?fx:'')+pawnG+after+
+    `<circle id="t_fl" cx="${V[0]}" cy="${V[1]}" r="${PD*1.4}" fill="url(#t_flg)" opacity="0" style="transform-origin:${V[0]}px ${V[1]}px"/>`+
+    `<circle id="t_rg" cx="${V[0]}" cy="${V[1]}" r="${PD}" fill="none" stroke="${kind==='boulder'?'rgba(220,200,170,.8)':kind==='net'?'#9dffa8':'#ffcf7a'}" stroke-width="2.5" opacity="0" style="transform-origin:${V[0]}px ${V[1]}px"/>`;
+  const $=id=>document.getElementById(id),o=x=>x/DUR;
+  an($('c_vg'),[{opacity:0},{opacity:1,offset:.1},{opacity:1,offset:.85},{opacity:0}],DUR);
+  let HIT;
+  if(kind==='net'){
+    HIT=300;tsfx.net();
+    an($('t_tok'),[{opacity:1,transform:'scale(1) rotate(0deg)'},{opacity:1,transform:'scale(.6) rotate(120deg)',offset:o(90)},{opacity:0,transform:'scale(.3) rotate(220deg)',offset:o(160)},{opacity:0}],DUR);
+    const up=PD*3.6,sw=[[o(330),0,0],[o(470),0,-up],[o(610),PD*.3,-up],[o(750),-PD*.3,-up],[o(880),PD*.2,-up],[o(1000),0,-up]];
+    const frames=[{transform:T(V[0],V[1]),filter:'none',opacity:1},{transform:T(V[0],V[1]),offset:o(330)}];
+    sw.slice(1).forEach(([of,dx,dy],k)=>frames.push({transform:T(V[0]+dx,V[1]+dy,` rotate(${180+(k%2?-14:14)*(k<4?1:.4)}deg) scale(1.1)`),filter:k>=1?'grayscale(1) brightness(.7)':'none',offset:of}));
+    frames.push({transform:T(V[0]+ux*PD*4,V[1]+uy*PD*4+PD,' rotate(500deg) scale(.5)'),filter:'grayscale(1) brightness(.7)',opacity:0,offset:o(1350)},{opacity:0,transform:T(V[0]+ux*PD*4,V[1]+uy*PD*4)});
+    an($('t_v'),frames,DUR);
+    // the net rides along with the pawn
+    const ng=$('t_net');ng.style.transformBox='view-box';
+    an(ng,[{opacity:0,transform:`translate(0px,0px) scale(2.3)`},{opacity:1,transform:`translate(0px,0px) scale(2.2) rotate(20deg)`,offset:o(40)},{opacity:1,transform:`translate(0px,0px) scale(.95,.8) rotate(120deg)`,offset:o(240)},{opacity:1,transform:`translate(0px,0px) scale(1,.88) rotate(135deg)`,offset:o(330)},
+      ...sw.slice(1).map(([of,dx,dy])=>({opacity:1,transform:`translate(${dx}px,${dy}px) scale(1,.88) rotate(135deg)`,offset:of})),{opacity:0,transform:`translate(${ux*PD*4}px,${uy*PD*4+PD}px) scale(.5)`,offset:o(1350)},{opacity:0}],DUR);
+    an($('t_rope'),[{opacity:0},{opacity:0,offset:o(320)},{opacity:1,offset:o(340)},{opacity:1,offset:o(1000)},{opacity:0,offset:o(1080)},{opacity:0}],DUR);
+    const rp=$('t_rope');if(rp){const t0=performance.now();const step=()=>{const el=performance.now()-t0;if(el>1100||!rp.isConnected)return;const m=el<330?0:el<470?(el-330)/140:1;const sx=el<470?0:Math.sin((el-470)/130*Math.PI)*PD*.3*(el>880?.5:1);rp.setAttribute('x1',V[0]+sx);rp.setAttribute('y1',V[1]-up*m);rp.setAttribute('x2',V[0]+sx*.2);requestAnimationFrame(step);};requestAnimationFrame(step);}
+  }else if(kind==='boulder'){
+    HIT=330;tsfx.boulder();
+    an($('t_tok'),[{opacity:1},{opacity:1,offset:o(HIT)},{opacity:0,offset:o(HIT+10)},{opacity:0}],DUR);
+    an($('t_sh'),[{opacity:0,transform:'scale(.2)'},{opacity:.7,transform:'scale(1)',offset:o(HIT)},{opacity:.7,offset:o(950)},{opacity:0,offset:o(1250)},{opacity:0}],DUR);
+    an($('t_b'),[{opacity:0,transform:`translate(0px,${-PD*12}px) scale(1.5) rotate(-30deg)`},{opacity:1,transform:`translate(0px,${-PD*11}px) scale(1.45) rotate(-25deg)`,offset:o(60)},{opacity:1,transform:'translate(0px,0px) scale(1) rotate(0deg)',offset:o(HIT)},{transform:`translate(0px,${-PD*.4}px) scale(1.02)`,offset:o(HIT+60)},{transform:'translate(0px,0px) scale(1)',offset:o(HIT+120)},{opacity:1,transform:'translate(0px,0px)',offset:o(950)},{opacity:0,transform:`translate(${ux*PD*4}px,${uy*PD*4}px) rotate(160deg) scale(.9)`,offset:o(1350)},{opacity:0}],DUR);
+    an($('t_v'),[{transform:T(V[0],V[1]),filter:'none',opacity:1},{transform:T(V[0],V[1],' rotate(-6deg)'),offset:o(80)},{transform:T(V[0],V[1],' rotate(6deg)'),offset:o(160)},{transform:T(V[0],V[1],' rotate(-4deg)'),offset:o(240)},{transform:T(V[0],V[1]),filter:'none',offset:o(HIT-5)},
+      {transform:T(V[0],V[1]+PD*.3,' scale(1.4,.3)'),filter:'grayscale(1) brightness(.6)',opacity:1,offset:o(HIT+5)},{transform:T(V[0],V[1]+PD*.3,' scale(1.4,.3)'),filter:'grayscale(1) brightness(.6)',opacity:1,offset:o(950)},{transform:T(V[0],V[1]+PD*.3,' scale(1.2,.2)'),opacity:0,offset:o(1150)},{opacity:0}],DUR);
+    an($('t_ck'),[{opacity:0},{opacity:0,offset:o(HIT)},{opacity:1,offset:o(HIT+20)},{opacity:.8,offset:o(1400)},{opacity:0}],DUR);
+  }else{
+    HIT=330;tsfx.keg();
+    an($('t_sp'),[{opacity:0,transform:'scale(.6)'},{opacity:1,transform:'scale(1)',offset:o(20)},{opacity:.4,transform:'scale(1.6)',offset:o(80)},{opacity:1,transform:'scale(.9)',offset:o(140)},{opacity:.5,transform:'scale(1.7)',offset:o(200)},{opacity:1,transform:'scale(1)',offset:o(260)},{opacity:0,transform:'scale(1.8)',offset:o(HIT)},{opacity:0}],DUR);
+    an($('t_tok'),[{opacity:1,transform:'scale(1)'},{opacity:1,transform:'scale(1.12)',offset:o(HIT-20)},{opacity:0,transform:'scale(1.6)',offset:o(HIT+20)},{opacity:0}],DUR);
+    an($('t_fb'),[{opacity:0,transform:'scale(.2)'},{opacity:0,transform:'scale(.2)',offset:o(HIT)},{opacity:1,transform:'scale(1)',offset:o(HIT+80)},{opacity:.8,transform:'scale(1.35)',offset:o(HIT+330)},{opacity:0,transform:'scale(1.5)',offset:o(HIT+600)},{opacity:0}],DUR);
+    an($('t_sm'),[{opacity:0,transform:'scale(.4)'},{opacity:0,transform:'scale(.5)',offset:o(HIT+150)},{opacity:.9,transform:'scale(1)',offset:o(HIT+400)},{opacity:0,transform:`translate(0px,${-PD}px) scale(1.9)`,offset:o(1500)},{opacity:0}],DUR);
+    an($('t_sc'),[{opacity:0},{opacity:0,offset:o(HIT+80)},{opacity:1,offset:o(HIT+250)},{opacity:1}],DUR);
+    const upv=[V[0]+ux*PD,V[1]+uy*PD-PD*2.6],fly=[V[0]+ux*PD*5,V[1]+uy*PD*5+PD];
+    an($('t_v'),[{transform:T(V[0],V[1]),filter:'none',opacity:1},{transform:T(V[0],V[1],' rotate(-6deg)'),offset:o(80)},{transform:T(V[0],V[1],' rotate(6deg)'),offset:o(160)},{transform:T(V[0],V[1],' rotate(-5deg)'),offset:o(240)},{transform:T(V[0],V[1]),filter:'none',offset:o(HIT-5)},
+      {transform:T(V[0],V[1],' scale(1.3)'),filter:'brightness(0) invert(1)',offset:o(HIT+20)},{transform:T(upv[0],upv[1],' rotate(260deg) scale(1.2)'),filter:'grayscale(1) brightness(.6)',offset:o(HIT+160)},{transform:T(fly[0],fly[1],' rotate(720deg) scale(.5)'),filter:'grayscale(1) brightness(.6)',opacity:0,offset:o(HIT+700)},{opacity:0,transform:T(fly[0],fly[1])}],DUR);
+  }
+  // shared impact: flash, ring, debris, shake
+  an($('t_fl'),[{opacity:0,transform:'scale(.3)'},{opacity:0,transform:'scale(.3)',offset:o(HIT-10)},{opacity:1,transform:'scale(1)',offset:o(HIT+30)},{opacity:0,transform:'scale(1.6)',offset:o(HIT+220)},{opacity:0}],DUR);
+  an($('t_rg'),[{opacity:0,transform:'scale(.3)'},{opacity:0,transform:'scale(.3)',offset:o(HIT)},{opacity:1,transform:'scale(.6)',offset:o(HIT+20)},{opacity:0,transform:kind==='boulder'?'scale(3,1.6)':'scale(3)',offset:o(HIT+420)},{opacity:0}],DUR);
+  document.querySelectorAll('#bcut .t_pt').forEach(el=>an(el,[{opacity:0,transform:'translate(0px,0px)'},{opacity:0,transform:'translate(0px,0px)',offset:o(HIT)},{opacity:1,offset:o(HIT+20)},{transform:`translate(${el.dataset.dx*.6}px,${el.dataset.dy*.6-PD}px) rotate(180deg)`,offset:o(HIT+150)},{opacity:0,transform:`translate(${el.dataset.dx}px,${+el.dataset.dy+PD*.8}px) rotate(400deg)`,offset:o(HIT+600)},{opacity:0}],DUR));
+  const amp=kind==='boulder'?9:kind==='keg'?8:2;
+  setTimeout(()=>{if(bd.animate&&!ANIM.zoom)bd.animate([{transform:'none'},{transform:`translate(${amp}px,${-amp/2}px)`},{transform:`translate(${-amp}px,${amp/2}px)`},{transform:`translate(${amp/2}px,${amp}px)`},{transform:`translate(${-amp/2}px,${-amp/3}px)`},{transform:'none'}],{duration:240});},HIT);
+  setTimeout(()=>sfx.grunt(FACTIONS[vf].voice),HIT+120);
+  if(ANIM.zoom&&bd.animate){const Z=isPhone()?1.6:1.3;bd.style.transformOrigin=`${V[0]/VW*100}% ${V[1]/VH*100}%`;bd.animate([{transform:'scale(1)'},{transform:`scale(${Z})`,offset:.12},{transform:`scale(${Z})`,offset:.8},{transform:'scale(1)'}],{duration:DUR,easing:'ease-in-out'});}
+  // caption
+  const bw=document.querySelector('.boardwrap');
+  if(bw){const self=vic.length&&vic.every(([q])=>q===ev.owner),n=ev.n||vic.length||1;
+    const what=self?null:(n>1?n+' '+(vic.every(([q])=>q===vq)?MANY[vf]:'pawns'):vq===ME?'your pawn':ONE[vf]);
+    const nm=FACTIONS[fac].name,tr={net:'net',keg:'keg',boulder:'boulder'}[kind];
+    const txt=self?`Oops! ${nm} walked into their own ${tr}`:`${nm}' ${TRAP[fac].verb} ${what}!`;
+    const cap=document.createElement('div');cap.className='ccap';cap.style.setProperty('--c',col);cap.style.animationDelay='-.35s';if(V[1]>CY+VH*.15){cap.style.bottom='auto';cap.style.top='7%';}
+    cap.innerHTML=`<img src="${IMG['p_'+fac]}" alt=""><b>${esc(txt)}</b>`;bw.appendChild(cap);setTimeout(()=>cap.remove(),1650);}
+  await sleep(DUR);
+  g.innerHTML='';S.hide=null;
+}
 </script>
 </body>
 </html>

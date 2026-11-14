@@ -134,7 +134,7 @@ const FACTIONS = { elves: { name: 'Elves', c: '#45c463' }, dwarves: { name: 'Dwa
 const FKEYS = ['elves', 'dwarves', 'orcs'];
 const PALETTE = [['Red', '#e5484d'], ['Blue', '#3e8ef7'], ['Yellow', '#f2c94c'], ['Green', '#3fb950'], ['Purple', '#a371f7'], ['Orange', '#f0883e'], ['Pink', '#f778ba'], ['Teal', '#2bc4c4']];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';                      // no I or O: easy to read out loud
-const DUR = { tick: 0, roll: 750, hop: 200, capture: 820, boom: 880, guess: 1300, log: 0, state: 0, opening: 0 };
+const DUR = { tick: 0, roll: 750, hop: 220, capture: 820, boom: 880, guess: 1300, log: 0, state: 0, opening: 0 };
 
 function makeCode() { let c; do { c = ''; for (let k = 0; k < 4; k++) c += CODE_CHARS[crypto.randomInt(CODE_CHARS.length)]; } while (rooms.has(c)); return c; }
 const token = () => crypto.randomBytes(12).toString('hex');
@@ -206,7 +206,7 @@ function emit(room, ev) {
   if (ev.m) logMsg(room, ev.m);
   feedAdd(room, ev);
   const now = Date.now();
-  const dur = ev.t === 'hop' ? DUR.hop * ev.path.length + 100 : ev.t === 'pause' ? ev.ms : (DUR[ev.t] || 0);
+  const dur = ev.t === 'hop' ? DUR.hop * ev.path.length + 100 : ev.t === 'pause' ? ev.ms : ev.t === 'capture' && room.theme === 'fantasy' ? 1550 : ev.t === 'boom' && room.theme === 'fantasy' ? 1750 : (DUR[ev.t] || 0);   // fantasy captures play a ~1.5 s cutscene
   room.busyUntil = Math.max(now, room.busyUntil) + dur;
   ev.seq = ++room.seq; ev.s = JSON.parse(JSON.stringify(publicState(room)));
   room.events.push(ev); if (room.events.length > 400) room.events.splice(0, room.events.length - 400);
@@ -472,7 +472,7 @@ function handleApi(req, res, body) {
     chatMsg(room, seat, text, false, sp ? { name: sp.name + ' 👀' } : null); emit(room, { t: 'chat' }); return send(res, 200, { ok: true });
   }
   if (op === 'emote' && seat >= 0) {
-    const E = ['🙏', '😠', '😒', '⏳', '😂'];
+    const E = ['cheer', 'laugh', 'heehee', 'flex', 'thanks', 'hurry', 'annoyed', 'angry'];
     if (!E.includes(body.e) || Date.now() - (room.cool['e' + seat] || 0) < 900) return send(res, 200, { ok: false });
     room.cool['e' + seat] = Date.now();
     chatMsg(room, seat, body.e, false, { emote: true }); emit(room, { t: 'emote', p: seat, e: body.e }); return send(res, 200, { ok: true });
@@ -643,6 +643,12 @@ const server = http.createServer((req, res) => {
   if (req.method === 'GET' && STATIC[u.pathname]) {
     res.writeHead(200, { 'Content-Type': STATIC[u.pathname], 'Cache-Control': 'public, max-age=86400' });
     return fs.createReadStream(path.join(PUBLIC, u.pathname.slice(1))).pipe(res);
+  }
+  if (req.method === 'GET' && /^\/art\/[a-z0-9_]+\.webp$/.test(u.pathname)) {   // game art (weapons, emotes)
+    const f = path.join(PUBLIC, u.pathname.slice(1));
+    if (!fs.existsSync(f)) { res.writeHead(404); return res.end(); }
+    res.writeHead(200, { 'Content-Type': 'image/webp', 'Cache-Control': 'public, max-age=604800' });
+    return fs.createReadStream(f).pipe(res);
   }
   if (req.method === 'GET' && u.pathname === '/health') { res.writeHead(200); return res.end('ok'); }
   if (req.method === 'GET' && (u.pathname === '/' || u.pathname === '/index.html')) {
