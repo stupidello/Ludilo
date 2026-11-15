@@ -586,6 +586,27 @@
   @keyframes pemo{0%{opacity:0}8%{opacity:1}86%{opacity:1}100%{opacity:0}}
   @keyframes pemoi{0%{transform:scale(.3)}14%{transform:scale(1.12)}24%{transform:scale(1)}100%{transform:scale(1)}}
   @media (max-width:760px){.tray .emobar{gap:8px}.pcards.strip .pemo img{height:calc(100% - 4px)}}
+  /* v1.9.5 settings: volume on top, share + QR, foldable sections */
+  /* v1.9.5: foldable game log (PC) and emote bar in chat; no emote bar in the phone chat sheet */
+  .glogh{display:flex;justify-content:space-between;align-items:center;width:100%;background:none;border:none;padding:0;cursor:pointer;text-align:left}
+  .glogh i{font-style:normal;transition:transform .2s}.glog.min{flex:none}.glog.min #log{display:none}.glog.min .glogh i{transform:rotate(-90deg)}
+  .emotog{height:44px;padding:0 14px;border-radius:12px;font-weight:700;display:inline-flex;align-items:center;gap:6px}
+  .emotog i{font-style:normal;transition:transform .2s}.emotog.open i{transform:rotate(180deg)}
+  .emogrid{display:flex;flex-wrap:wrap;gap:6px;width:100%;order:-1}   /* opens upward, so the Emotes button stays under the pointer */
+  @media (max-width:760px){.sheet .emobar{display:none}}
+  #volpop{position:fixed;z-index:80;width:250px;display:flex;align-items:flex-end;gap:10px;padding:12px;border-radius:14px;background:var(--panel);border:1px solid var(--line);box-shadow:0 16px 40px rgba(0,0,0,.6)}
+  #volpop .vsl{flex:1;display:flex;flex-direction:column;gap:4px}#volpop label{display:flex;justify-content:space-between;font-size:13px;color:var(--muted)}#volpop input{width:100%}
+  .volb{min-width:44px}
+  .vrow{display:flex;align-items:flex-end;gap:10px}.vrow .vsl{flex:1;display:flex;flex-direction:column;gap:4px}
+  .mutebtn{width:44px;height:44px;padding:0;font-size:20px;flex:none}
+  .tline{display:flex;align-items:center;justify-content:space-between;gap:10px}.seg.mini button{padding:4px 12px;font-size:13px}
+  .invrow svg.ic{width:18px!important;height:18px!important;flex:none}
+  .invrow{display:flex;gap:8px}.invrow .inv{flex:1;display:inline-flex;align-items:center;justify-content:center!important;gap:8px}
+  .invrow .qrb{width:48px;padding:0;display:inline-flex;align-items:center;justify-content:center}
+  .sxh{display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;font-weight:800;font-size:15px;padding:11px 12px;border-radius:12px;background:#262b37;border:1px solid var(--line);color:var(--text)}
+  .sxh small{font-weight:500;color:var(--muted);font-size:12px;margin-left:4px}.sxh i{font-style:normal;transition:transform .2s;color:var(--muted)}
+  .sxh.open{border-bottom-left-radius:0;border-bottom-right-radius:0}.sxh.open i{transform:rotate(180deg)}
+  .sxb{display:flex;flex-direction:column;gap:8px;margin-top:-8px;padding:10px 12px 12px;border:1px solid var(--line);border-top:none;border-radius:0 0 12px 12px;background:rgba(255,255,255,.02)}
   .bub.img{width:64px;height:64px;background:none;box-shadow:none;right:-18px;top:-26px}
   .bub.img img{width:64px;height:64px;filter:drop-shadow(0 6px 10px rgba(0,0,0,.55))}
   .cm.emoline .tx img.chi{width:30px;height:30px;vertical-align:middle}
@@ -886,15 +907,16 @@ function mineSVG(x,y,c){
 }
 const PIPS={1:[[0,0]],2:[[-1,-1],[1,1]],3:[[-1,-1],[0,0],[1,1]],4:[[-1,-1],[1,-1],[-1,1],[1,1]],5:[[-1,-1],[1,-1],[0,0],[-1,1],[1,1]],6:[[-1,-1],[1,-1],[-1,0],[1,0],[-1,1],[1,1]]};
 function dieSVG(){
-  const face=S.rolling?S.face:(S.die||S.face), c=S.phase==='opening'?'#cfd5e3':PLAYERS[S.cur].c, sz=52, x=CX-sz/2, y=CY-sz/2;
+  const face=S.rolling?S.face:(S.die||S.face), c=S.phase==='opening'?'#cfd5e3':PLAYERS[S.cur].c, sz=50, x=CX-sz/2, y=CY-sz/2;
   const cls=S.rolling?'die-g rolling':(S.dieLanded?'die-g landed':'die-g');
   const tf=S.rolling?`transform:rotate(${S.rot||0}deg) translate(${S.jx||0}px,${S.jy||0}px) scale(${S.sc||1});`:'';
   if(S.dieLanded) S.dieLanded=false;          // play the landing bounce once
-  let g=`<g class="${cls}" id="dieg" data-act="dieclick" style="cursor:pointer;${tf}">`+
-    `<rect x="${x+3}" y="${y+5}" width="${sz}" height="${sz}" rx="10" fill="#000" opacity=".35"/>`+
-    `<rect x="${x}" y="${y}" width="${sz}" height="${sz}" rx="10" fill="#fbfbfd" stroke="${c}" stroke-width="3.5"/>`+
-    `<rect x="${x+4}" y="${y+4}" width="${sz-8}" height="${sz/2-4}" rx="7" fill="#fff" opacity=".7"/>`;
-  for(const[i,j] of PIPS[face]) g+=`<circle cx="${CX+i*13.5}" cy="${CY+j*13.5}" r="5.1" fill="${face===1?'#d22':'#1d2230'}"/>`;
+  // v1.9.5: the die sits in a dark circle in the middle, coloured like the faction rolling, black dots
+  let g=`<circle cx="${CX}" cy="${CY}" r="42" fill="#0d0f15" stroke="${c}" stroke-opacity=".55" stroke-width="2.5"/>`+
+    `<g class="${cls}" id="dieg" data-act="dieclick" style="cursor:pointer;${tf}">`+
+    `<rect x="${x+2}" y="${y+4}" width="${sz}" height="${sz}" rx="10" fill="#000" opacity=".45"/>`+
+    `<rect x="${x}" y="${y}" width="${sz}" height="${sz}" rx="10" fill="${c}"/>`;
+  for(const[i,j] of PIPS[face]) g+=`<circle cx="${CX+i*13}" cy="${CY+j*13}" r="5" fill="#14161c"/>`;
   return g+`</g>`;
 }
 
@@ -972,7 +994,7 @@ const sbuf={};let sndLoading=false;
 function loadSnd(){ if(sndLoading||!sfx.ctx) return; sndLoading=true;
   for(const k in SND){ try{const bin=atob(SND[k]),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
     sfx.ctx.decodeAudioData(u.buffer).then(b=>{sbuf[k]=b;}).catch(()=>{});}catch(e){} } }
-const VOL=k=>{const v=DESIGN.vol||{};return (k==='dice'||k==='drumroll')?(v.dice??1):(k.startsWith('step')||k==='spawn')?(v.step??1):(k==='victory'||k==='ahem'||k==='mmm')?(v.extra??1):(v.fight??1);};
+const VOL=k=>1;   // v1.9.5: only the master volume is adjustable now
 function playSnd(k,vol=1,rate=1,loop=false){
   vol*=VOL(k);
   if(muted||!sfx.ctx||!sbuf[k]) return null;
@@ -1030,7 +1052,7 @@ async function api(body){
 function saveToken(){try{localStorage.setItem('ludo:'+NET.room,NET.token);}catch(e){}}
 function loadToken(code){try{return localStorage.getItem('ludo:'+code);}catch(e){return null;}}
 
-const queue=[];let playing=false;
+const queue=[];let playing=false;let CHAT=null;   // newest chat list from the server (V can lag behind while animations play)
 const idle=()=>!playing&&queue.length===0;
 let claimTried=false;
 async function pollLoop(){
@@ -1045,7 +1067,7 @@ async function pollLoop(){
       for(const ev of j.events){
         if(ev.seq<=NET.seq) continue;
         NET.seq=ev.seq;
-        renderChat(ev.s.chat);
+        if(ev.s.chat)CHAT=ev.s.chat;renderChat(CHAT);   // keep the latest chat even for chat-only events (opening the phone sheet used to show an older list)
         if(ev.resync){queue.length=0;queue.push(ev);}
         else if(ev.t==='emote'||ev.t==='point'){ if(typeof uiEvent==='function') uiEvent(ev); }
         else if(ev.t!=='chat') queue.push(ev);
@@ -1204,7 +1226,7 @@ function showHome(err){
     <div class="or">— or join with a code —</div>
     <div class="row"><input id="code" placeholder="CODE" maxlength="4" value="${esc(want)}" style="text-transform:uppercase;letter-spacing:4px;font-weight:700"><button data-act="join">Join</button><button data-act="watchjoin" title="Join as a watcher">👀</button></div>
     <div class="err" id="err">${esc(err||'')}</div>
-    <div class="hint" style="text-align:right">v1.9.4</div>
+    <div class="hint" style="text-align:right">v1.9.5</div>
   </div>`;
 }
 async function enterRoom(code,token){
@@ -1470,7 +1492,7 @@ document.addEventListener('keyup',e=>{ if(isSpace(e)&&e.target.tagName!=='INPUT'
 </script>
 <script>
 /* ===================== v1.4 interface: room screen, in-game layout, emotes, pointing, game over, statistics ===================== */
-const UI={diceFaces:true,roomView:false,endClosed:false,stats:false,statTab:'overview',statDice:'all',pointMode:false,lastPoint:0,bubbles:{},sheet:false,tray:false,seenChat:0,qr:false,lastGamePhase:null};
+const UI={sx:{opts:false,god:false},emoOpen:false,logMin:(()=>{try{return localStorage.getItem('ludo:logmin')==='1'}catch(e){return false}})(),diceFaces:true,roomView:false,endClosed:false,stats:false,statTab:'overview',statDice:'all',pointMode:false,lastPoint:0,bubbles:{},sheet:false,tray:false,seenChat:0,qr:false,lastGamePhase:null};
 const TAGLINE={elves:'Swift archers of the old forest.',dwarves:'Stubborn hammer-folk of the snowy peaks.',orcs:'War bands of the red desert.'};
 const EMOTES=[['cheer','Cheer'],['laugh','Haha'],['heehee','Hee-hee'],['flex','Flex'],['thanks','Thanks'],['hurry','Come on'],['annoyed','Annoyed'],['angry','Angry']];
 const EMOKEYS=EMOTES.map(x=>x[0]);
@@ -1497,10 +1519,10 @@ async function enterRoom(code,token){
   <div class="g" id="game">
     <header class="gtop">
       <div class="brand">Ludilo</div><span class="rcode">Room <b>${esc(code)}</b></span><span id="gclk" class="gclk"></span><span id="specn" class="specn"></span>
-      <div class="gtop-r"><button class="tb" data-ui="stats" aria-label="Statistics">📊<span class="lbl"> Stats</span></button><button class="tb" data-dact="toggle" aria-label="Settings">⚙️<span class="lbl"> Settings</span></button></div>
+      <div class="gtop-r"><button class="tb volb" data-dact="vol" aria-label="Volume">🔊</button><button class="tb" data-ui="stats" aria-label="Statistics">📊<span class="lbl"> Stats</span></button><button class="tb" data-dact="toggle" aria-label="Settings">⚙️<span class="lbl"> Settings</span></button></div>
     </header>
     <div class="gmain">
-      <aside class="gleft"><div id="players" class="pcards"></div><div class="glog"><div class="gh">Game log</div><div id="log"></div></div></aside>
+      <aside class="gleft"><div id="players" class="pcards"></div><div class="glog${UI.logMin?' min':''}"><button class="gh glogh" data-ui="logmin">Game log <i>▾</i></button><div id="log"></div></div></aside>
       <section class="gcenter">
         <div id="pstrip" class="pcards strip"></div>
         <div class="bspace"><div class="boardwrap"><svg id="board" viewBox="0 0 440 440" aria-label="Game board"></svg><div id="pop"></div><div id="tring"></div><div id="ptimer"></div><div id="autobar"></div><div id="gclock"></div><div id="bombbox"></div><div id="pointlayer"></div><div id="pointbar"></div></div></div>
@@ -1535,7 +1557,7 @@ function renderChat(list){
   const els=[...document.querySelectorAll('.msgs')];
   if(key===lastChatKey&&els.every(e=>e.dataset.k===String(key))) return;
   lastChatKey=key;
-  const h=list.map(m=>{
+  const h=list.filter(m=>!m.emote).map(m=>{   // emotes show on the player cards only, not in chat
     const tc=m.sys?'#8a93a6':esc(m.c);
     if(m.sys) return `<div class="cm sys"><span class="ct">${hm(m.ts)}</span><span>${esc(m.text)}</span></div>`;
     if(m.point) return `<div class="cm pt"><span class="ct" style="color:${tc}">${hm(m.ts)}</span><b style="color:${esc(m.c)}">${esc(m.name)}</b><span>👉 ${esc(m.text)}</span></div>`;
@@ -1565,7 +1587,10 @@ function emoBarHTML(){
   if(inGame) h+=`<button class="emo pointb${cd?' cool':''}" data-ui="point" style="--c:${me.c}" ${ME<0||cd?'disabled':''} aria-label="Point at a pawn"><img class="emi hand" src="/art/e_${facOf(ME<0?0:ME)}_hand.webp" alt=""><span>${cd?cd+'s':'Point'}</span></button>`;
   return h;
 }
-function renderEmoBars(){const h=emoBarHTML();document.querySelectorAll('.emobar').forEach(el=>{if(el.innerHTML!==h)el.innerHTML=h;});}
+function renderEmoBars(){const full=emoBarHTML();
+  const pt=(full.match(/<button class="emo pointb[\s\S]*$/)||[''])[0];
+  const fold=`<button class="emotog${UI.emoOpen?' open':''}" data-ui="emotog">😊 Emotes <i>▾</i></button>${pt}${UI.emoOpen?`<div class="emogrid">${full.replace(pt,'')}</div>`:''}`;
+  document.querySelectorAll('.emobar').forEach(el=>{const h=el.closest('.tray')?full:fold;if(el.innerHTML!==h)el.innerHTML=h;});}
 setInterval(()=>{if(UI.lastPoint&&Date.now()-UI.lastPoint<6000)renderEmoBars();},500);
 function uiEvent(ev){
   if(ev.t==='emote'){
@@ -1782,7 +1807,7 @@ function renderRoom(){
   el.innerHTML=`<div class="rm">
     <div class="rtop"><button class="tb" data-ui="lobby">‹<span class="lbl"> Back to lobby</span></button><div class="brand">Ludilo</div>
       <div class="codebox"><div><small>Room code</small><b>${esc(V.code)}</b></div><button data-ui="copy">Copy<span class="lk"> link</span></button><button data-ui="qr">QR</button></div>
-      <button class="tb" data-dact="toggle" data-stab="opts" aria-label="Settings">⚙️<span class="lbl"> Settings</span></button></div>
+      <button class="tb volb" data-dact="vol" aria-label="Volume">🔊</button><button class="tb" data-dact="toggle" data-stab="opts" aria-label="Settings">⚙️<span class="lbl"> Settings</span></button></div>
     ${UI.qr?`<div class="qrpop"><div id="qr"></div><div class="hint">Scan to join room ${esc(V.code)}</div><button data-ui="qr">Close</button></div>`:''}
     <div class="rmain"><div class="rleft">
       <div class="rhint"><b>${ME<0?'👀 You\'re watching'+(HOST?' · you\'re the host':''):fan?'Choose your faction':'Choose your seat and colour'}</b><span>${ME<0?'Take a free or bot seat to play.':'⇄ Taken? Ask that player to swap.'}</span>${ME>=0?'<button class="rwatchb" data-act="watchme">👀 Watch instead</button>':''}</div>
@@ -1792,7 +1817,7 @@ function renderRoom(){
     </div>
     <div class="rchat chatbox"><div class="gh">💬 Room chat</div><div class="msgs"></div><div class="emobar"></div>
       <form class="chatform"><input placeholder="Say something…" maxlength="200" autocomplete="off" aria-label="Message"><button>Send</button></form></div></div></div>`;
-  lastChatKey='';renderChat(V.chat);renderEmoBars();
+  lastChatKey='';renderChat(CHAT||V.chat);renderEmoBars();
   if(UI.qr){const q=document.getElementById('qr');if(q&&window.QRCode){new QRCode(q,{text:document.getElementById('linkbox').value,width:180,height:180,correctLevel:QRCode.CorrectLevel.M});}}
 }
 function renderSwap(){
@@ -1865,7 +1890,7 @@ function renderStats(){
   if(UI.statTab==='overview'){
     const mineDeaths=p=>P.reduce((n,q)=>n+st.mineKills[q][p],0);
     const rows=[['Rolls',p=>sum(st.rolls[p])],['Sixes',p=>st.rolls[p][5]],['Steps walked',p=>st.steps[p]],['Kills',p=>killsOf(st,p)],['Deaths',p=>deathsOf(st,p)],
-      ['Mines planted',p=>st.planted[p]],['Kills with mines',p=>sum(st.mineKills[p])],['Deaths on mines',mineDeaths],['Odds/evens right',p=>st.oeRight[p]],['Pawns home',p=>S.pawns[p].filter(r=>r>=HOME0).length,true]];
+      ['Mines planted',p=>st.planted[p]],['Kills with mines',p=>sum(st.mineKills[p])],['Deaths on mines',mineDeaths],['Odds/evens right',p=>st.oeRight[p]],['Odds/evens wrong',p=>st.oeWrong[p]],['Pawns home',p=>S.pawns[p].filter(r=>r>=HOME0).length,true]];
     body=`<div class="otab"><div class="orow head"><span></span>${P.map(p=>`<div class="oh">${portrait(p,32)}<b>${esc(nmx(p))}</b><small>${esc(PLAYERS[p].name)}</small></div>`).join('')}<span class="ot">Total</span></div>`+
       rows.map(([l,f,noT])=>{const v=P.map(f),mx=Math.max(...v);return `<div class="orow"><span class="ol">${l}</span>${v.map(n=>`<span class="oval${n===mx&&mx>0?' best':''}">${n}</span>`).join('')}<span class="ot">${noT?'':sum(v)}</span></div>`;}).join('')+`</div>`;
   } else if(UI.statTab==='dice'){
@@ -1876,10 +1901,10 @@ function renderStats(){
       <div class="bars">${counts.map((n,i)=>`<div class="bar" title="${i+1}: ${n} rolls (${tot?Math.round(n/tot*100):0}%)"><span class="bb${n/mx<.25?' out':''}" style="height:${(n/mx*100).toFixed(1)}%;background:${col}"><span class="bn">${n}<small>${tot?Math.round(n/tot*100):0}%</small></span></span></div>`).join('')}</div>
       <div class="bars faces">${[1,2,3,4,5,6].map(n=>UI.diceFaces?dieFace(n):`<span class="fnum">${n}</span>`).join('')}</div>`;
   } else {
-    const chip=(q,n,mine)=>`<span class="kchip" title="${mine?'by mine: ':''}${esc(nmx(q))} ×${n}">${portrait(q,30)}${mine?'<span class="mi">💣</span>':''}<b>×${n}</b></span>`;
+    const chip=(q,n,m)=>`<span class="kchip" title="${esc(nmx(q))}: ${n} in fights, ${m} by mines">${portrait(q,30)}${n?`<b>×${n}</b>`:''}${m?`<span class="mi">💣</span><b>×${m}</b>`:''}</span>`;   // one portrait per player, fights and mines side by side
     const cards=P.map(a=>{const killed=[],by=[];
-      P.forEach(b=>{if(st.kills[a][b])killed.push(chip(b,st.kills[a][b]));if(st.mineKills[a][b])killed.push(chip(b,st.mineKills[a][b],1));
-        if(st.kills[b][a])by.push(chip(b,st.kills[b][a]));if(st.mineKills[b][a])by.push(chip(b,st.mineKills[b][a],1));});
+      P.forEach(b=>{if(st.kills[a][b]||st.mineKills[a][b])killed.push(chip(b,st.kills[a][b],st.mineKills[a][b]));
+        if(st.kills[b][a]||st.mineKills[b][a])by.push(chip(b,st.kills[b][a],st.mineKills[b][a]));});
       return `<div class="kcard" style="--c:${PLAYERS[a].c}"><div class="kh">${portrait(a,44)}<div><b>${esc(nmx(a))}</b><small>${esc(PLAYERS[a].name)}</small></div></div>
         <div class="kl"><span>Killed</span><b>${killsOf(st,a)}</b></div><div class="kc">${killed.join('')||'<small class="dim">nobody</small>'}</div>
         <div class="kl"><span>Killed by</span><b>${deathsOf(st,a)}</b></div><div class="kc">${by.join('')||'<small class="dim">nobody</small>'}</div></div>`;}).join('');
@@ -1911,13 +1936,15 @@ setInterval(()=>{const gc=document.getElementById('gclk');if(gc){const ms=gameEl
 document.addEventListener('click',async e=>{
   const b=e.target.closest('[data-ui]');if(!b||b.disabled)return;
   const k=b.dataset.ui;
+  if(k==='logmin'){UI.logMin=!UI.logMin;try{localStorage.setItem('ludo:logmin',UI.logMin?'1':'0')}catch(e){};const g=document.querySelector('.glog');if(g)g.classList.toggle('min',UI.logMin);return;}
+  if(k==='emotog'){UI.emoOpen=!UI.emoOpen;renderEmoBars();return;}
   if(k==='emote'){api({op:'emote',e:b.dataset.e});UI.tray=false;document.getElementById('tray').classList.remove('open');return;}
   if(k==='point'){if(Date.now()-UI.lastPoint<5000)return;UI.pointMode=true;UI.tray=false;document.getElementById('tray').classList.remove('open');closeSheet();render();return;}
   if(k==='pointx'){UI.pointMode=false;render();return;}
   if(k==='pointat'){UI.pointMode=false;UI.lastPoint=Date.now();api({op:'point',p:+b.dataset.p,i:+b.dataset.i});render();return;}
   if(k==='tray'){UI.tray=!UI.tray;document.getElementById('tray').classList.toggle('open',UI.tray);renderEmoBars();return;}
   if(k==='logf'){UI.logF=b.dataset.f;renderLogSheet();return;}
-  if(k==='sheet'){if(UI.logOpen)setLog(false);UI.sheet=true;UI.tray=false;document.getElementById('tray').classList.remove('open');document.getElementById('sheet').classList.add('open');lastChatKey='';renderChat(V&&V.chat);renderEmoBars();
+  if(k==='sheet'){if(UI.logOpen)setLog(false);UI.sheet=true;UI.tray=false;document.getElementById('tray').classList.remove('open');document.getElementById('sheet').classList.add('open');lastChatKey='';renderChat(CHAT||(V&&V.chat));renderEmoBars();
     const m=document.querySelector('#sheet .msgs');if(m)m.scrollTop=m.scrollHeight;return;}
   if(k==='sheetx'){closeSheet();return;}
   if(k==='stats'){if(statsOf()){UI.stats=true;UI.statTab=UI.statTab||'overview';render();}return;}
@@ -1936,7 +1963,7 @@ document.addEventListener('click',async e=>{
   if(k==='qr'){UI.qr=!UI.qr;renderRoom();return;}
   if(k==='lobby'){await api({op:'leave'});try{localStorage.removeItem('ludo:'+NET.room);}catch(err){};location.href=location.pathname;return;}
 });
-function closeSheet(){UI.sheet=false;const s=document.getElementById('sheet');if(s)s.classList.remove('open');renderChat(V&&V.chat);}
+function closeSheet(){UI.sheet=false;const s=document.getElementById('sheet');if(s)s.classList.remove('open');renderChat(CHAT||(V&&V.chat));}
 document.addEventListener('pointerdown',e=>{if(!UI.pointMode)return;if(e.target.closest('.pspot,[data-ui=point]'))return;UI.pointMode=false;e.preventDefault();e.stopPropagation();render();},true);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(UI.pointMode){UI.pointMode=false;render();}else if(UI.stats){UI.stats=false;render();}else if(UI.sheet)closeSheet();}});
 window.addEventListener('resize',()=>{if(V)render();});
@@ -1953,34 +1980,29 @@ function dRow(label,key,min,max,step,val){return `<label>${label}<b>${val}</b></
 function pRow(label,key){const v=Math.round(((DESIGN.vol||{})[key]??1)*100);return `<label>${label}<b>${v}%</b></label><input type="range" min="0" max="100" step="5" value="${v}" data-dkey="vol.${key}" data-pct="1">`;}
 function renderDesign(){
   const el=document.getElementById('dpanel');if(!el)return;const bg=DESIGN.bg[dLand];
-  const tabs=[['opts','🎲 Game'],['sound','🔊 Sound'],['rules','📖 Rules']];   // the Look tab is hidden for now (set sTab='look' to bring it back)
+  const tabs=[['opts','⚙️ Game'],['rules','📖 Rules']];   // sound moved to the top of Game (master volume only)   // the Look tab is hidden for now (set sTab='look' to bring it back)
   let h=`<div class="shead"><b style="font-size:16px">⚙️ Settings</b><button data-dact="toggle" style="padding:4px 10px">✕</button></div>
   <div class="seg stabs">${tabs.map(([k,n])=>`<button data-dact="tab" data-t="${k}" class="${sTab===k?'on':''}">${n}</button>`).join('')}</div>`;
-  if(sTab==='sound') h+=`<div class="seg"><button data-dact="mute" data-m="0" class="${muted?'':'on'}">🔊 Sound on</button><button data-dact="mute" data-m="1" class="${muted?'on':''}">🔇 Off</button></div>
-    ${pRow('Master volume','master')}${pRow('Dice &amp; drum roll','dice')}${pRow('Footsteps &amp; spawn','step')}${pRow('Hits, deaths &amp; explosions','fight')}${pRow('Extras (victory, ahem, mmm)','extra')}
-    <label style="display:block;margin-top:8px">Your-turn sound <span style="color:var(--muted);font-size:12px">· a quiet knock when it's your move</span></label><div class="seg"><button data-dact="anim" data-k="turn" data-v="1" class="${ANIM.turn?'on':''}">On</button><button data-dact="anim" data-k="turn" data-v="0" class="${ANIM.turn?'':'on'}">Off</button></div>
-    <b>Test sounds</b><div class="row" style="flex-wrap:wrap;gap:5px">${[['dice','🎲 Dice'],['step','👣 Step'],['spawn','Spawn'],['hit-elves','Elf hit'],['hit-dwarves','Dwarf hit'],['hit-orcs','Orc hit'],['grunt-elves','Elf death'],['grunt-dwarves','Dwarf death'],['grunt-orcs','Orc death'],['boom','💥 Boom'],['mmm','Mmmm'],['ahem','Ahem'],['drumroll','🥁 Drum roll'],['victory','🏆 Victory']].map(([k,n])=>`<button data-dact="snd" data-k="${k}" style="padding:5px 8px;font-size:12px">${n}</button>`).join('')}</div>`;
   if(sTab==='opts'){
     const run=V&&V.game&&V.game.phase!=='over', can=HOST&&!run, dis=can?'':'disabled';
-    h+=`<b>Animations <span style="font-weight:400;color:var(--muted);font-size:12px">· just for you</span></b>
-    <label>Capture cutscenes</label><div class="seg"><button data-dact="anim" data-k="cut" data-v="1" class="${ANIM.cut?'on':''}">On</button><button data-dact="anim" data-k="cut" data-v="0" class="${ANIM.cut?'':'on'}">Off</button></div>
-    <label>Zoom in on fights</label><div class="seg"><button data-dact="anim" data-k="zoom" data-v="0" class="${ANIM.zoom?'':'on'}">Off</button><button data-dact="anim" data-k="zoom" data-v="1" class="${ANIM.zoom?'on':''}">On</button></div>
-    ${HOST?`<b>🛠 God mode <span style="font-weight:400;color:var(--muted);font-size:12px">· for testing</span></b>
-    <div class="seg"><button data-dact="god" data-v="0" class="${V&&V.god?'':'on'}">Off</button><button data-dact="god" data-v="1" class="${V&&V.god?'on':''}">On</button></div>
-    <div class="hint">Lets you, the host, pick the next roll, move pawns, place traps and set whose turn it is (🛠 button next to the board). Everyone sees that it's on.</div>`:''}
-    <b>Invite friends</b><div class="row" style="flex-wrap:wrap;gap:8px"><button data-dact="invite">📨 ${navigator.share&&isPhone()?'Share link':'Copy link'}</button><button data-dact="sqr" class="${UI.sqr?'on':''}">QR code</button></div>
+    const SHARE='<svg class="ic" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="M8.3 10.8l7.4-4.3M8.3 13.2l7.4 4.3"/></svg>';
+    const QR='<svg class="ic" viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M3 3h8v8H3zm2 2v4h4V5zm8-2h8v8h-8zm2 2v4h4V5zM3 13h8v8H3zm2 2v4h4v-4zm8-2h3v3h-3zm3 3h3v3h-3zm3-3h2v3h-2zm-6 6h3v2h-3zm5 0h3v2h-3z"/></svg>';
+    const sec=(k,title,body,sub)=>`<button class="sxh${UI.sx[k]?' open':''}" data-dact="sx" data-k="${k}"><span>${title}${sub?` <small>${sub}</small>`:''}</span><i>▾</i></button>${UI.sx[k]?`<div class="sxb">${body}</div>`:''}`;
+    h+=`<label class="tline">Your-turn sound<div class="seg mini"><button data-dact="anim" data-k="turn" data-v="1" class="${ANIM.turn?'on':''}">On</button><button data-dact="anim" data-k="turn" data-v="0" class="${ANIM.turn?'':'on'}">Off</button></div></label>
+    <div class="invrow"><button data-dact="invite" class="inv">${SHARE} ${navigator.share&&isPhone()?'Share link':'Copy link'}</button><button data-dact="sqr" class="qrb${UI.sqr?' on':''}" aria-label="QR code">${QR}</button></div>
     ${UI.sqr?'<div id="sqrbox" style="align-self:center;background:#fff;padding:10px;border-radius:10px;width:max-content"></div>':''}
     <div class="hint">Room <b>${esc(V?V.code:'')}</b>. ${V&&V.game&&V.game.phase!=='over'?'Friends who join now can watch, and take over a bot to play.':'Friends who join get a free seat, or watch if the room is full.'}</div>
-    <b>Game options</b>
-    <label>Board style</label><div class="seg"><button data-act="theme" data-t="fantasy" class="${THEME==='fantasy'?'on':''}" ${dis}>⚔️ Fantasy</button><button data-act="theme" data-t="classic" class="${THEME==='classic'?'on':''}" ${dis}>🎲 Classic</button></div>
+    ${sec('opts','🎲 Game options',`<label>Board style</label><div class="seg"><button data-act="theme" data-t="fantasy" class="${THEME==='fantasy'?'on':''}" ${dis}>⚔️ Fantasy</button><button data-act="theme" data-t="classic" class="${THEME==='classic'?'on':''}" ${dis}>🎲 Classic</button></div>
     <div class="hint">Fantasy: pick a faction. Classic: pick a seat and a colour.</div>
     <label>Turn timer<b id="tval">${V&&V.timeLimit?V.timeLimit+' s':'Off'}</b></label><input class="tslider" type="range" min="0" max="60" step="5" value="${V&&V.timeLimit||0}" data-timer ${dis}>
     <div class="hint">When time runs out, autopilot plays for that player until they tap.</div>
     <label>Mines</label><div class="seg"><button data-dact="mrule" data-r="classic" class="${V&&V.mineRule==='safe'?'':'on'}" ${dis}>Classic</button><button data-dact="mrule" data-r="safe" class="${V&&V.mineRule==='safe'?'on':''}" ${dis}>Safe for you · max 2</button></div>
     <div class="hint">${V&&V.mineRule==='safe'?'Your own pawns never set off your own mines. You can have at most 2 mines on the board at once.':'Your own mine only spares your pawn if another of your pawns stands on it.'}</div>
-    <label>Move hints</label><div class="seg"><button data-dact="hints" data-on="0" class="${V&&V.hints?'':'on'}" ${dis}>Off</button><button data-dact="hints" data-on="1" class="${V&&V.hints?'on':''}" ${dis}>On</button></div>
-    <div class="hint">On: pawn buttons show what a move does (kill, home, odds/evens, mine).</div>
-    <div class="hint" style="border-top:1px solid var(--line);padding-top:8px">${HOST?(run?'You can change these between games.':'Only the host can change these.'):'Only the host can change these.'}</div>
+    <label>Move hints</label><div class="seg"><button data-dact="hints" data-on="0" class="${V&&V.hints?'':'on'}" ${HOST?'':'disabled'}>Off</button><button data-dact="hints" data-on="1" class="${V&&V.hints?'on':''}" ${HOST?'':'disabled'}>On</button></div>
+    <div class="hint">On: pawn buttons show what a move does (kill, home, odds/evens, mine). Can be switched any time, also mid-game.</div>
+    <div class="hint">${HOST?(run?'Board style, timer and mines can be changed between games.':'You are the host, so you can change these.'):'Only the host can change these.'}</div>`,HOST?'':'host only')}
+    ${HOST?sec('god','🛠 God mode',`<div class="seg"><button data-dact="god" data-v="0" class="${V&&V.god?'':'on'}">Off</button><button data-dact="god" data-v="1" class="${V&&V.god?'on':''}">On</button></div>
+    <div class="hint">Lets you, the host, pick the next roll, move pawns, place traps and set whose turn it is (🛠 button next to the board). Everyone sees that it's on.</div>`,V&&V.god?'on':'for testing'):''}
     <b>Room</b><div class="row" style="flex-wrap:wrap;gap:8px">${HOST&&run?`<button data-dact="restart" class="${restartArm?'warn':''}">${restartArm?'Tap again: end this game':'↺ New game (back to the room)'}</button>`:''}<button data-act="leave">🚪 Leave room</button></div>
     ${HOST&&run?'<div class="hint">New game ends this game for everyone and takes you all back to the room to set up the next one.</div>':''}`;
   }
@@ -1999,6 +2021,16 @@ function renderDesign(){
   if(sTab==='opts'&&UI.sqr){const q=document.getElementById('sqrbox');const lb=document.getElementById('linkbox');if(q&&lb&&window.QRCode)new QRCode(q,{text:lb.value,width:170,height:170,correctLevel:QRCode.CorrectLevel.M});}
 }
 document.addEventListener('pointerdown',e=>{const p=document.getElementById('dpanel');if(!p||!p.classList.contains('open'))return;if(p.contains(e.target)||e.target.closest('[data-dact=toggle]'))return;p.classList.remove('open');},true);
+/* volume: a small slider that drops down from the 🔊 button in the top bar */
+function volIcon(){const v=(DESIGN.vol||{}).master??1;return muted||v===0?'🔇':v<.4?'🔈':'🔊';}
+function syncVolIcons(){document.querySelectorAll('.volb').forEach(b=>{const t=volIcon();if(b.textContent!==t)b.textContent=t;});}
+setInterval(syncVolIcons,700);
+function openVol(btn){let p=document.getElementById('volpop');if(p){p.remove();return;}
+  p=document.createElement('div');p.id='volpop';const r=btn.getBoundingClientRect();
+  p.style.top=(r.bottom+8)+'px';p.style.right=Math.max(8,innerWidth-r.right-60)+'px';
+  const draw=()=>{p.innerHTML=`<button class="mutebtn" data-dact="vmute" aria-label="${muted?'Sound on':'Mute'}">${muted?'🔇':'🔊'}</button><div class="vsl">${pRow('Volume','master')}</div>`;};
+  draw();p._draw=draw;document.body.appendChild(p);}
+document.addEventListener('pointerdown',e=>{const p=document.getElementById('volpop');if(!p)return;if(p.contains(e.target)||e.target.closest('.volb'))return;p.remove();},true);
 function refreshDesign(){const p=document.getElementById('dpanel');if(!p||!p.classList.contains('open')||sTab!=='opts')return;if(document.activeElement&&p.contains(document.activeElement)&&document.activeElement.matches('input'))return;renderDesign();}
 function saveDesign(){try{localStorage.setItem('ludo:design',JSON.stringify(DESIGN));}catch(e){}const o=document.getElementById('dout');if(o)o.value=JSON.stringify(DESIGN);}
 document.addEventListener('input',e=>{const k=e.target.dataset&&e.target.dataset.dkey;if(!k)return;let v=+e.target.value;
@@ -2010,6 +2042,9 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-dact
   if(a==='hints'){api({op:'hints',on:b.dataset.on==='1'});}
   if(a==='mrule'){api({op:'mrule',r:b.dataset.r});}
   if(a==='sqr'){UI.sqr=!UI.sqr;renderDesign();}
+  if(a==='vol'){openVol(b);return;}
+  if(a==='vmute'){muted=!muted;try{localStorage.setItem('ludoMuted',muted?'1':'0')}catch(err){};const p=document.getElementById('volpop');if(p)p._draw();syncVolIcons();if(muted&&sfx.stopRoll)sfx.stopRoll();return;}
+  if(a==='sx'){UI.sx[b.dataset.k]=!UI.sx[b.dataset.k];renderDesign();}
   if(a==='invite'){const lb=document.getElementById('linkbox');const url=lb?lb.value:location.href;
     if(navigator.share&&isPhone()){navigator.share({title:'Ludilo',text:'Come play Ludilo with me! Room '+(V?V.code:''),url}).catch(()=>{});}
     else{try{await navigator.clipboard.writeText(url);}catch(err){if(lb){lb.select();document.execCommand&&document.execCommand('copy');}}b.textContent='✓ Link copied';setTimeout(()=>renderDesign(),1600);}}
@@ -2033,6 +2068,7 @@ setInterval(tickClock,1000);
 const HOPMS=220;
 let ANIM={cut:true,zoom:false,turn:true};
 try{const a=JSON.parse(localStorage.getItem('ludo:anim')||'null');if(a)ANIM={...ANIM,...a};}catch(e){}
+ANIM.cut=true;ANIM.zoom=false;   // cutscenes always on, no zoom (the options were removed)
 const saveAnim=()=>{try{localStorage.setItem('ludo:anim',JSON.stringify(ANIM));}catch(e){}};
 /* your turn: a quiet wooden tock-tock when the turn passes to you (not on a re-roll after a 6); the tab title blinks while you're away */
 let turnWas=false,blinkT=null;const baseTitle=document.title;
@@ -2168,13 +2204,13 @@ function loadSamples(){if(!sfx.ctx||loadSamples.done)return;loadSamples.done=tru
 document.addEventListener('pointerdown',()=>{try{sfx.init();loadSamples();}catch(e){}},{passive:true});
 let HEH=null;   // the attacker's smug chuckle; faded out when the weapon lands so the hit stays clear
 function hehPlay(f){if(!sfx.ok())return;const k='heh_'+f+(1+Math.floor(Math.random()*2));if(!SBUF[k])return;
-  try{const s=sfx.ctx.createBufferSource(),g=sfx.ctx.createGain();s.buffer=SBUF[k];g.gain.value=.8;s.connect(g).connect(sfx.out());s.start();HEH={s,g};s.onended=()=>{if(HEH&&HEH.s===s)HEH=null;};}catch(e){}}
+  try{const s=sfx.ctx.createBufferSource(),g=sfx.ctx.createGain();s.buffer=SBUF[k];g.gain.value=.8*({elf:.7,dwarf:.9,orc:.9}[f]||1);s.connect(g).connect(sfx.out());s.start();HEH={s,g};s.onended=()=>{if(HEH&&HEH.s===s)HEH=null;};}catch(e){}}
 function hehFade(){if(!HEH)return;try{const t=sfx.ctx.currentTime;HEH.g.gain.cancelScheduledValues(t);HEH.g.gain.setValueAtTime(HEH.g.gain.value,t);HEH.g.gain.linearRampToValueAtTime(0,t+.12);HEH.s.stop(t+.15);}catch(e){}HEH=null;}
 function playSample(k,vol=1){if(!sfx.ok()||!SBUF[k])return false;try{const s=sfx.ctx.createBufferSource(),g=sfx.ctx.createGain();s.buffer=SBUF[k];g.gain.value=vol;s.connect(g).connect(sfx.out());s.start();return true;}catch(e){return false;}}
 const tsfx={
-  net(){if(!sfx.ok())return;if(SBUF.net){playSample('ntrig',.6);setTimeout(()=>playSample('net',.67),120);setTimeout(()=>sfx.burst('bandpass',4200,1,.1,.3),430);return;}sfx.burst('highpass',900,.7,.35,.28,5200);setTimeout(()=>{sfx.tone(1500,420,.18,.09,'triangle');sfx.burst('bandpass',3000,6,.2,.05);},230);setTimeout(()=>sfx.burst('bandpass',4200,1,.22,.35),430);},
-  boulder(){if(!sfx.ok())return;if(SBUF.boulder){playSample('btrig',.3);setTimeout(()=>sfx.tone(900,260,.1,.12,'sine'),110);setTimeout(()=>playSample('boulder',.27),315);return;}sfx.tone(900,260,.12,.3,'sine');setTimeout(()=>{sfx.tone(85,38,.85,.45);sfx.burst('lowpass',700,.8,.9,.4,120);},330);setTimeout(()=>{for(let k=0;k<5;k++)setTimeout(()=>sfx.burst('bandpass',500+Math.random()*900,2,.25,.08),k*55);},400);},
-  keg(){if(!sfx.ok())return;sfx.burst('bandpass',2600,1.3,.05,.3,4200);setTimeout(()=>{if(!playSnd('boom',2.6))sfx.boom();},330);}   // short, soft fuse fizz, then the blast
+  net(){if(!sfx.ok())return;if(SBUF.net){playSample('ntrig',.54);setTimeout(()=>playSample('net',.6),120);setTimeout(()=>sfx.burst('bandpass',4200,1,.1,.3),430);return;}sfx.burst('highpass',900,.7,.35,.28,5200);setTimeout(()=>{sfx.tone(1500,420,.18,.09,'triangle');sfx.burst('bandpass',3000,6,.2,.05);},230);setTimeout(()=>sfx.burst('bandpass',4200,1,.22,.35),430);},
+  boulder(){if(!sfx.ok())return;if(SBUF.boulder){playSample('btrig',.24);setTimeout(()=>sfx.tone(900,260,.1,.12,'sine'),110);setTimeout(()=>playSample('boulder',.22),315);return;}sfx.tone(900,260,.12,.3,'sine');setTimeout(()=>{sfx.tone(85,38,.85,.45);sfx.burst('lowpass',700,.8,.9,.4,120);},330);setTimeout(()=>{for(let k=0;k<5;k++)setTimeout(()=>sfx.burst('bandpass',500+Math.random()*900,2,.25,.08),k*55);},400);},
+  keg(){if(!sfx.ok())return;sfx.burst('bandpass',2600,1.3,.05,.3,4200);setTimeout(()=>{if(!playSnd('boom',3.3))sfx.boom();},330);}   // short, soft fuse fizz, then the blast
 };
 async function trapScene(ev){
   const g=document.getElementById('bcut'),bd=document.getElementById('board');if(!g||!bd)return;

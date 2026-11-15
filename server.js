@@ -476,7 +476,7 @@ function handleApi(req, res, body) {
     const E = ['cheer', 'laugh', 'heehee', 'flex', 'thanks', 'hurry', 'annoyed', 'angry'];
     if (!E.includes(body.e) || Date.now() - (room.cool['e' + seat] || 0) < 900) return send(res, 200, { ok: false });
     room.cool['e' + seat] = Date.now();
-    chatMsg(room, seat, body.e, false, { emote: true }); emit(room, { t: 'emote', p: seat, e: body.e }); return send(res, 200, { ok: true });
+    emit(room, { t: 'emote', p: seat, e: body.e });   // v1.9.5: emotes no longer go into the chat return send(res, 200, { ok: true });
   }
   if (op === 'point' && seat >= 0 && room.game && room.game.phase !== 'over') {
     const q = body.p, i = body.i, G = room.game;
@@ -540,6 +540,7 @@ function handleApi(req, res, body) {
     chatMsg(room, -1, room.god ? '🛠 God mode is ON: the host can set dice and move pieces.' : '🛠 God mode is off.', true);
     emit(room, { t: 'state' }); tickBots(room); return send(res, 200, { ok: true });
   }
+  if (op === 'hints' && isHost) { room.hints = !!body.on; emit(room, { t: 'state' }); return send(res, 200, { ok: true }); }   // move hints can change mid-game
   // ----- lobby -----
   if (!room.game || room.game.phase === 'over') {
     const target = Number.isInteger(body.seat) ? body.seat : seat;
@@ -559,7 +560,6 @@ function handleApi(req, res, body) {
     if (op === 'seat' && isHost && target >= 0 && !room.seats[target].token) {        // open seat <-> bot
       const s = room.seats[target]; s.bot = !!body.bot; s.open = !s.bot; emit(room, { t: 'state' });
     }
-    if (op === 'hints' && isHost) { room.hints = !!body.on; emit(room, { t: 'state' }); }
     if (op === 'mrule' && isHost) { room.mineRule = body.r === 'safe' ? 'safe' : 'classic'; emit(room, { t: 'state' }); }
     if (op === 'take' && Number.isInteger(body.seat) && body.seat >= 0 && body.seat < 3 && body.seat !== seat) {   // sit in an open seat, or take over a bot
       const to = room.seats[body.seat];
