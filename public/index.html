@@ -991,7 +991,7 @@ sfx.step=function(){   // soft grass steps (recorded); never the same one twice 
   if(typeof SBUF!=='undefined'&&SBUF.step1&&!muted){let k;do{k=1+Math.floor(Math.random()*4);}while(k===this.lastStep);this.lastStep=k;
     if(SBUF['step'+k]){try{const s=this.ctx.createBufferSource(),g=this.ctx.createGain();s.buffer=SBUF['step'+k];s.playbackRate.value=.98+Math.random()*.04;g.gain.value=VOL('step')*1.6;s.connect(g).connect(this.out());s.start();return;}catch(e){}}}
   if(!playSnd('step'+(1+Math.floor(Math.random()*3)),1,.95+Math.random()*.1)) _sfx.step(); };
-sfx.hit=function(kind){ const f={staff:'elves',hammer:'dwarves',axe:'orcs'}[kind]; if(!(f&&playSnd('hit-'+f))) _sfx.hit(kind); };
+sfx.hit=function(kind){ const f={staff:'elves',hammer:'dwarves',axe:'orcs'}[kind]; if(!(f&&playSnd('hit-'+f,f==='orcs'?2.16:f==='dwarves'?1.2:1))) _sfx.hit(kind); };
 sfx.boom=function(){ if(!playSnd('boom')) _sfx.boom(); };
 sfx.grunt=function(f0){ const f=Object.keys(FACTIONS).find(k=>FACTIONS[k].voice===f0); if(!(f&&playSnd('grunt-'+f))) _sfx.grunt(f0); };
 
@@ -1204,7 +1204,7 @@ function showHome(err){
     <div class="or">— or join with a code —</div>
     <div class="row"><input id="code" placeholder="CODE" maxlength="4" value="${esc(want)}" style="text-transform:uppercase;letter-spacing:4px;font-weight:700"><button data-act="join">Join</button><button data-act="watchjoin" title="Join as a watcher">👀</button></div>
     <div class="err" id="err">${esc(err||'')}</div>
-    <div class="hint" style="text-align:right">v1.9.3</div>
+    <div class="hint" style="text-align:right">v1.9.4</div>
   </div>`;
 }
 async function enterRoom(code,token){
@@ -2066,7 +2066,7 @@ async function captureScene(p,i,fromRel,toRel,cev){
   const fac=PLAYERS[p].faction,vf=(PLAYERS[vq]||{}).faction||'orcs',kind=fac==='elves'?'e':fac==='dwarves'?'d':'o';
   const A=pawnXYanim(p,i,fromRel),V=stepXY(a);
   const SPC=Math.hypot(stepXY(1)[0]-stepXY(0)[0],stepXY(1)[1]-stepXY(0)[1]);
-  const side=kind==='e'?offPt(a-.2,SPC*1.5):offPt(a-.5,SPC*1.5);
+  const side=kind==='e'?offPt(a-.15,SPC*3):offPt(a-.5,SPC*1.5);   // the elf steps well in toward the centre (2+ pawns away) before shooting
   const PD=21.2*PS,dist=Math.hypot(V[0]-side[0],V[1]-side[1]);
   const ang=Math.atan2(V[1]-side[1],V[0]-side[0])*180/Math.PI;
   let base=ang+90;base=((base+180)%360+360)%360-180;
@@ -2076,7 +2076,7 @@ async function captureScene(p,i,fromRel,toRel,cev){
   // ---- build the overlay ----
   let w='';
   if(kind==='e'){
-    const BH=PD*2.7,BW=BH*60/300,BDW=BH*114/300,XR=PD*.55+BW*.65,AW=PD*3,AH=AW*27/240;
+    const BH=PD*1.9,BW=BH*60/300,BDW=BH*114/300,XR=PD*.55+BW*.65,AW=PD*1.54,AH=AW*27/240;
     w=`<g id="c_bow" style="transform:${T(side[0],side[1],` rotate(${ang}deg)`)};opacity:0"><image id="c_br" href="/art/bow.webp" x="${PD*.55-BW*.35}" y="${-BH/2}" width="${BW}" height="${BH}"/><image id="c_bd" href="/art/bow_drawn.webp" x="${XR-BDW}" y="${-BH/2}" width="${BDW}" height="${BH}" opacity="0"/></g>`+
       `<g id="c_arr" style="opacity:0"><rect x="${-AW*2}" y="-2" width="${AW*1.3}" height="4" rx="2" fill="url(#c_trail)" id="c_trl" opacity="0"/><image href="/art/arrow.webp" x="${-(AW-6)}" y="${-AH/2}" width="${AW}" height="${AH}"/></g>`;
   }else{
@@ -2093,7 +2093,7 @@ async function captureScene(p,i,fromRel,toRel,cev){
     `<linearGradient id="c_trail"><stop offset="0" stop-color="#8dff7a" stop-opacity="0"/><stop offset="1" stop-color="#8dff7a" stop-opacity=".8"/></linearGradient></defs>`+
     `<rect id="c_vg" x="0" y="0" width="${VW}" height="${VH}" fill="url(#c_vig)" opacity="0" pointer-events="none" clip-path="url(#boardclip)"/>`+
     `<g id="c_v" style="transform:${T(V[0],V[1])}"><g transform="scale(${PS})">${pawnArt(vq,vic.map(([q,j])=>j+1).sort(),vic.length||1,'')}</g></g>`+
-    w+`<g id="c_a" style="transform:${T(A[0],A[1])}"><g transform="scale(${PS})">${pawnArt(p,[i+1],1,'')}</g></g>`+
+    `<g id="c_a" style="transform:${T(A[0],A[1])}"><g transform="scale(${PS})">${pawnArt(p,[i+1],1,'')}</g></g>`+w+
     `<circle id="c_fl1" cx="${V[0]}" cy="${V[1]}" r="${PD*1.3}" fill="url(#c_fl)" opacity="0" style="transform-origin:${V[0]}px ${V[1]}px"/>`+
     `<circle class="c_rg" cx="${V[0]}" cy="${V[1]}" r="${PD}" fill="none" stroke="${fc}" stroke-width="3" opacity="0" style="transform-origin:${V[0]}px ${V[1]}px"/>`+
     `<circle class="c_rg" cx="${V[0]}" cy="${V[1]}" r="${PD}" fill="none" stroke="${fc}" stroke-width="2" opacity="0" style="transform-origin:${V[0]}px ${V[1]}px"/>`+
@@ -2137,8 +2137,8 @@ async function captureScene(p,i,fromRel,toRel,cev){
   const amp=kind==='d'?7:kind==='o'?4:2,ms=IM*1550;
   setTimeout(()=>{if(bd.animate&&!ANIM.zoom)bd.animate([{transform:'none'},{transform:`translate(${amp}px,${-amp/2}px)`},{transform:`translate(${-amp}px,${amp/2}px)`},{transform:`translate(${amp/2}px,${amp}px)`},{transform:'none'}],{duration:160});},ms);
   // sounds
-  if(kind==='e'){setTimeout(()=>bowsfx.draw(),1550*.15);setTimeout(()=>bowsfx.release(),1550*.28);setTimeout(()=>bowsfx.hit(),HIT);}
-  else{if(kind==='d'&&SBUF.whoosh)setTimeout(()=>playSample('whoosh',.7),Math.max(0,HIT-30-Math.round(SBUF.whoosh.duration*1000)));   // hammer swing ends right on the thud
+  if(kind==='e'){setTimeout(()=>bowsfx.draw(),150);setTimeout(()=>playSample('bowrel',.54),1550*.28-45);setTimeout(()=>bowsfx.release(),1550*.28);setTimeout(()=>bowsfx.hit(),HIT);}
+  else{const wk=kind==='d'?'whoosh':'whoosh2';if(SBUF[wk])setTimeout(()=>playSample(wk,.84),Math.max(0,HIT-30-Math.round(SBUF[wk].duration*1000)));   // hammer swing ends right on the thud
     setTimeout(()=>sfx.hit(FACTIONS[fac].weapon),HIT-30);}
   setTimeout(()=>sfx.grunt(FACTIONS[vf].voice),HIT+110);
   setTimeout(()=>sfx.step(),1550*.72);
@@ -2157,12 +2157,12 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-dact="anim
 const TRAP={elves:{verb:'net caught',kind:'net'},dwarves:{verb:'keg blew up',kind:'keg'},orcs:{verb:'boulder crushed',kind:'boulder'}};
 const ONE={elves:'an Elf',dwarves:'a Dwarf',orcs:'an Orc'},MANY={elves:'Elves',dwarves:'Dwarves',orcs:'Orcs'};
 const bowsfx={
-  draw(){},
-  release(){if(!sfx.ok())return;if(!playSample('arrow',.9))setTimeout(()=>sfx.burst('highpass',2500,.8,.2,.13,6000),25);},
+  draw(){playSample('bowdraw',.4);},
+  release(){if(!sfx.ok())return;if(!playSample('arrow',.65))setTimeout(()=>sfx.burst('highpass',2500,.8,.2,.13,6000),25);},
   hit(){}   // the victim's grunt carries the hit
 };
 /* recorded sounds: loaded once, played through the same volume controls; the synth version is the fallback */
-const SAMPLES={net:'/art/s_net.mp3',boulder:'/art/s_boulder.mp3',ntrig:'/art/s_ntrig.mp3',btrig:'/art/s_btrig.mp3',arrow:'/art/s_arrow.mp3',step1:'/art/s_step1.mp3',step2:'/art/s_step2.mp3',step3:'/art/s_step3.mp3',step4:'/art/s_step4.mp3',turn:'/art/s_turn.mp3',pop:'/art/s_pop.mp3',whoosh:'/art/s_whoosh1.mp3',heh_elf1:'/art/s_heh_elf1.mp3',heh_elf2:'/art/s_heh_elf2.mp3',heh_dwarf1:'/art/s_heh_dwarf1.mp3',heh_dwarf2:'/art/s_heh_dwarf2.mp3',heh_orc1:'/art/s_heh_orc1.mp3',heh_orc2:'/art/s_heh_orc2.mp3'},SBUF={};
+const SAMPLES={net:'/art/s_net.mp3',boulder:'/art/s_boulder.mp3',ntrig:'/art/s_ntrig.mp3',btrig:'/art/s_btrig.mp3',arrow:'/art/s_arrow.mp3',step1:'/art/s_step1.mp3',step2:'/art/s_step2.mp3',step3:'/art/s_step3.mp3',step4:'/art/s_step4.mp3',turn:'/art/s_turn.mp3',pop:'/art/s_pop.mp3',whoosh:'/art/s_whoosh1.mp3',whoosh2:'/art/s_whoosh2.mp3',bowdraw:'/art/s_bowdraw.mp3',bowrel:'/art/s_bowrel.mp3',heh_elf1:'/art/s_heh_elf1.mp3',heh_elf2:'/art/s_heh_elf2.mp3',heh_dwarf1:'/art/s_heh_dwarf1.mp3',heh_dwarf2:'/art/s_heh_dwarf2.mp3',heh_orc1:'/art/s_heh_orc1.mp3',heh_orc2:'/art/s_heh_orc2.mp3'},SBUF={};
 function loadSamples(){if(!sfx.ctx||loadSamples.done)return;loadSamples.done=true;
   Object.entries(SAMPLES).forEach(([k,u])=>fetch(u).then(r=>r.arrayBuffer()).then(b=>sfx.ctx.decodeAudioData(b)).then(buf=>{SBUF[k]=buf;}).catch(()=>{}));}
 document.addEventListener('pointerdown',()=>{try{sfx.init();loadSamples();}catch(e){}},{passive:true});
@@ -2172,9 +2172,9 @@ function hehPlay(f){if(!sfx.ok())return;const k='heh_'+f+(1+Math.floor(Math.rand
 function hehFade(){if(!HEH)return;try{const t=sfx.ctx.currentTime;HEH.g.gain.cancelScheduledValues(t);HEH.g.gain.setValueAtTime(HEH.g.gain.value,t);HEH.g.gain.linearRampToValueAtTime(0,t+.12);HEH.s.stop(t+.15);}catch(e){}HEH=null;}
 function playSample(k,vol=1){if(!sfx.ok()||!SBUF[k])return false;try{const s=sfx.ctx.createBufferSource(),g=sfx.ctx.createGain();s.buffer=SBUF[k];g.gain.value=vol;s.connect(g).connect(sfx.out());s.start();return true;}catch(e){return false;}}
 const tsfx={
-  net(){if(!sfx.ok())return;if(SBUF.net){playSample('ntrig',.9);setTimeout(()=>playSample('net',1),120);setTimeout(()=>sfx.burst('bandpass',4200,1,.12,.3),430);return;}sfx.burst('highpass',900,.7,.35,.28,5200);setTimeout(()=>{sfx.tone(1500,420,.18,.09,'triangle');sfx.burst('bandpass',3000,6,.2,.05);},230);setTimeout(()=>sfx.burst('bandpass',4200,1,.22,.35),430);},
-  boulder(){if(!sfx.ok())return;if(SBUF.boulder){playSample('btrig',.9);setTimeout(()=>sfx.tone(900,260,.1,.2,'sine'),110);setTimeout(()=>playSample('boulder',1),315);return;}sfx.tone(900,260,.12,.3,'sine');setTimeout(()=>{sfx.tone(85,38,.85,.45);sfx.burst('lowpass',700,.8,.9,.4,120);},330);setTimeout(()=>{for(let k=0;k<5;k++)setTimeout(()=>sfx.burst('bandpass',500+Math.random()*900,2,.25,.08),k*55);},400);},
-  keg(){if(!sfx.ok())return;sfx.burst('bandpass',2600,1.3,.05,.3,4200);setTimeout(()=>sfx.boom(),330);}   // short, soft fuse fizz, then the blast
+  net(){if(!sfx.ok())return;if(SBUF.net){playSample('ntrig',.6);setTimeout(()=>playSample('net',.67),120);setTimeout(()=>sfx.burst('bandpass',4200,1,.1,.3),430);return;}sfx.burst('highpass',900,.7,.35,.28,5200);setTimeout(()=>{sfx.tone(1500,420,.18,.09,'triangle');sfx.burst('bandpass',3000,6,.2,.05);},230);setTimeout(()=>sfx.burst('bandpass',4200,1,.22,.35),430);},
+  boulder(){if(!sfx.ok())return;if(SBUF.boulder){playSample('btrig',.3);setTimeout(()=>sfx.tone(900,260,.1,.12,'sine'),110);setTimeout(()=>playSample('boulder',.27),315);return;}sfx.tone(900,260,.12,.3,'sine');setTimeout(()=>{sfx.tone(85,38,.85,.45);sfx.burst('lowpass',700,.8,.9,.4,120);},330);setTimeout(()=>{for(let k=0;k<5;k++)setTimeout(()=>sfx.burst('bandpass',500+Math.random()*900,2,.25,.08),k*55);},400);},
+  keg(){if(!sfx.ok())return;sfx.burst('bandpass',2600,1.3,.05,.3,4200);setTimeout(()=>{if(!playSnd('boom',2.6))sfx.boom();},330);}   // short, soft fuse fizz, then the blast
 };
 async function trapScene(ev){
   const g=document.getElementById('bcut'),bd=document.getElementById('board');if(!g||!bd)return;
