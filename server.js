@@ -681,10 +681,10 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': STATIC[u.pathname], 'Cache-Control': 'public, max-age=86400' });
     return fs.createReadStream(path.join(PUBLIC, u.pathname.slice(1))).pipe(res);
   }
-  if (req.method === 'GET' && /^\/art\/[a-z0-9_]+\.webp$/.test(u.pathname)) {   // game art (weapons, emotes)
+  if (req.method === 'GET' && /^\/art\/[a-z0-9_]+\.(webp|mp3)$/.test(u.pathname)) {   // game art and sounds
     const f = path.join(PUBLIC, u.pathname.slice(1));
     if (!fs.existsSync(f)) { res.writeHead(404); return res.end(); }
-    res.writeHead(200, { 'Content-Type': 'image/webp', 'Cache-Control': 'public, max-age=604800' });
+    res.writeHead(200, { 'Content-Type': u.pathname.endsWith('.mp3') ? 'audio/mpeg' : 'image/webp', 'Cache-Control': 'public, max-age=604800' });
     return fs.createReadStream(f).pipe(res);
   }
   if (req.method === 'GET' && u.pathname === '/health') { res.writeHead(200); return res.end('ok'); }

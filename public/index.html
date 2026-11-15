@@ -575,6 +575,17 @@
   /* v1.9 sticker emotes */
   .emo img.emi{width:36px;height:36px;object-fit:contain;pointer-events:none}
   .emo img.emi.hand{width:30px;height:auto}
+  /* v1.9.3 bigger emotes: larger picker, sticker fills the player card over a dimmed background */
+  .emo{width:58px;height:58px;border-radius:14px}
+  .emo img.emi{width:50px;height:50px}
+  .emo.pointb{height:58px}
+  .emo img.emi.hand{width:38px}
+  .pemo{position:absolute;inset:-2px;z-index:6;border-radius:14px;display:flex;align-items:center;justify-content:center;pointer-events:none;animation:pemo 2.8s ease forwards}
+  .pemo::before{content:'';position:absolute;inset:0;border-radius:inherit;background:rgba(8,10,16,.7);border:2px solid var(--c)}
+  .pemo img{position:relative;height:calc(100% + 4px);max-width:100%;object-fit:contain;filter:drop-shadow(0 6px 12px rgba(0,0,0,.6));animation:pemoi 2.8s ease forwards}
+  @keyframes pemo{0%{opacity:0}8%{opacity:1}86%{opacity:1}100%{opacity:0}}
+  @keyframes pemoi{0%{transform:scale(.3)}14%{transform:scale(1.12)}24%{transform:scale(1)}100%{transform:scale(1)}}
+  @media (max-width:760px){.tray .emobar{gap:8px}.pcards.strip .pemo img{height:calc(100% - 4px)}}
   .bub.img{width:64px;height:64px;background:none;box-shadow:none;right:-18px;top:-26px}
   .bub.img img{width:64px;height:64px;filter:drop-shadow(0 6px 10px rgba(0,0,0,.55))}
   .cm.emoline .tx img.chi{width:30px;height:30px;vertical-align:middle}
@@ -976,15 +987,21 @@ sfx.tick=function(){            // your dice sound plays once per roll
 };
 sfx.stopRoll=function(){ if(!this.rollSrc) return; try{const t=this.ctx.currentTime;this.rollSrc._g.gain.setTargetAtTime(0,t,.03);this.rollSrc.stop(t+.15);}catch(e){} this.rollSrc=null; };
 sfx.land=function(){ this.diceOn=false; if(!sbuf.dice) _sfx.land(); };   // no separate landing sound
-sfx.step=function(){ if(!playSnd('step'+(1+Math.floor(Math.random()*3)),1,.95+Math.random()*.1)) _sfx.step(); };
+sfx.step=function(){   // soft grass steps (recorded); never the same one twice in a row, only a gentle pitch wobble
+  if(typeof SBUF!=='undefined'&&SBUF.step1&&!muted){let k;do{k=1+Math.floor(Math.random()*4);}while(k===this.lastStep);this.lastStep=k;
+    if(SBUF['step'+k]){try{const s=this.ctx.createBufferSource(),g=this.ctx.createGain();s.buffer=SBUF['step'+k];s.playbackRate.value=.98+Math.random()*.04;g.gain.value=VOL('step')*1.6;s.connect(g).connect(this.out());s.start();return;}catch(e){}}}
+  if(!playSnd('step'+(1+Math.floor(Math.random()*3)),1,.95+Math.random()*.1)) _sfx.step(); };
 sfx.hit=function(kind){ const f={staff:'elves',hammer:'dwarves',axe:'orcs'}[kind]; if(!(f&&playSnd('hit-'+f))) _sfx.hit(kind); };
 sfx.boom=function(){ if(!playSnd('boom')) _sfx.boom(); };
 sfx.grunt=function(f0){ const f=Object.keys(FACTIONS).find(k=>FACTIONS[k].voice===f0); if(!(f&&playSnd('grunt-'+f))) _sfx.grunt(f0); };
 
 /* extra moments: victory, spawn, tidy home, drum roll, breathing down someone's neck */
-function needDrum(){                 // 3 pawns packed at the end of home, last one right in front: only a 1 wins
+function needDrum(){                 // drum roll whenever this roll can win: 3 pawns home and the last one can reach a free home slot with some number
   if(S.phase!=='roll') return false; const ps=S.pawns[S.cur]; if(!ps) return false;
-  return ps.filter(r=>r>=HOME0+1).length===3&&ps.includes(38);
+  if(ps.filter(r=>r>=HOME0).length!==3) return false;
+  const rel=ps.find(r=>r<HOME0); if(rel==null||rel<0) return false;
+  for(let d=1;d<=6;d++){const t=rel+d;if(t<HOME0||t>END)continue;let ok=true;for(let k=Math.max(rel+1,HOME0);k<=t;k++)if(ps.includes(k)){ok=false;break;}if(ok)return true;}
+  return false;
 }
 function laneTidy(ps){const h=ps.filter(r=>r>=HOME0).sort((a,b)=>a-b),k=h.length;for(let j=0;j<k;j++)if(h[j]!==END-k+1+j)return false;return true;}
 function breathing(pawns,p,rel){     // an opponent stands exactly one step ahead
@@ -1110,6 +1127,8 @@ async function play(ev){
   }
   if(ev.t==='hop'){
     const p=ev.p,i=ev.i;S.pawns[p][i]=ev.from;S.anim={p,i};
+    {const L=ev.path[ev.path.length-1];if(L>=0&&L<=38&&!isOE(abs(p,L))&&!(S.mines&&S.mines[abs(p,L)]!==undefined)&&S.pawns.some((ps,q)=>q!==p&&ps.some(r=>r>=0&&r<=38&&abs(q,r)===abs(p,L))))
+      setTimeout(()=>{if(typeof hehPlay==='function')hehPlay(facOf(p));},120);}   // a smug "heh" as the attacker sets off
     let prev=ev.from,nx=null,cut=false;
     for(let k=0;k<ev.path.length;k++){const rel=ev.path[k];
       if(k===ev.path.length-1){nx=queue[0];cut=nx&&nx.t==='capture'&&nx.p===p&&THEME==='fantasy'&&ANIM.cut&&!document.hidden;if(cut)break;}   // the capture may arrive while we hop: decide on the last step
@@ -1185,7 +1204,7 @@ function showHome(err){
     <div class="or">— or join with a code —</div>
     <div class="row"><input id="code" placeholder="CODE" maxlength="4" value="${esc(want)}" style="text-transform:uppercase;letter-spacing:4px;font-weight:700"><button data-act="join">Join</button><button data-act="watchjoin" title="Join as a watcher">👀</button></div>
     <div class="err" id="err">${esc(err||'')}</div>
-    <div class="hint" style="text-align:right">v1.9.2</div>
+    <div class="hint" style="text-align:right">v1.9.3</div>
   </div>`;
 }
 async function enterRoom(code,token){
@@ -1551,6 +1570,7 @@ setInterval(()=>{if(UI.lastPoint&&Date.now()-UI.lastPoint<6000)renderEmoBars();}
 function uiEvent(ev){
   if(ev.t==='emote'){
     UI.bubbles[ev.p]={e:ev.e,until:Date.now()+2800};renderPlayers();
+    if(typeof playSample==='function'&&EMOKEYS.includes(ev.e))playSample('pop',.18);
     setTimeout(renderPlayers,2900);
   }
   if(ev.t==='point') showPoint(ev.from,ev.p,ev.i);
@@ -1596,7 +1616,7 @@ function renderPlayers(){
       <div class="pring2" data-p="${p}">${portrait(p,0)}</div>
       <div class="pinfo"><div class="pname">${esc(x.name)}${p===ME?'<span class="you">you</span>':''}${x.bot?' <span class="tag">🤖</span>':''}</div>
         <div class="ppips" aria-label="${home} of 4 pawns home" title="Pawns home">${[0,1,2,3].map(j=>`<i class="${j<home?'on':''}"></i>`).join('')}<span class="pst">${status}</span></div></div>
-      ${bub?`<div class="bub${EMOKEYS.includes(bub.e)?' img':''}" style="animation-delay:-${Math.max(0,2800-(bub.until-now))}ms">${EMOKEYS.includes(bub.e)?emoImg(p,bub.e,'bubi'):`<span>${esc(bub.e)}</span>`}</div>`:''}</div>`;
+      ${bub?(EMOKEYS.includes(bub.e)?`<div class="pemo" style="animation-delay:-${Math.max(0,2800-(bub.until-now))}ms">${emoImg(p,bub.e,'bubi').replace('<img ',`<img style="animation-delay:-${Math.max(0,2800-(bub.until-now))}ms" `)}</div>`:`<div class="bub" style="animation-delay:-${Math.max(0,2800-(bub.until-now))}ms"><span>${esc(bub.e)}</span></div>`):''}</div>`;
   }).join('');
   if(a&&a.innerHTML!==h)a.innerHTML=h;
   if(b&&b.innerHTML!==h)b.innerHTML=h;
@@ -1938,6 +1958,7 @@ function renderDesign(){
   <div class="seg stabs">${tabs.map(([k,n])=>`<button data-dact="tab" data-t="${k}" class="${sTab===k?'on':''}">${n}</button>`).join('')}</div>`;
   if(sTab==='sound') h+=`<div class="seg"><button data-dact="mute" data-m="0" class="${muted?'':'on'}">🔊 Sound on</button><button data-dact="mute" data-m="1" class="${muted?'on':''}">🔇 Off</button></div>
     ${pRow('Master volume','master')}${pRow('Dice &amp; drum roll','dice')}${pRow('Footsteps &amp; spawn','step')}${pRow('Hits, deaths &amp; explosions','fight')}${pRow('Extras (victory, ahem, mmm)','extra')}
+    <label style="display:block;margin-top:8px">Your-turn sound <span style="color:var(--muted);font-size:12px">· a quiet knock when it's your move</span></label><div class="seg"><button data-dact="anim" data-k="turn" data-v="1" class="${ANIM.turn?'on':''}">On</button><button data-dact="anim" data-k="turn" data-v="0" class="${ANIM.turn?'':'on'}">Off</button></div>
     <b>Test sounds</b><div class="row" style="flex-wrap:wrap;gap:5px">${[['dice','🎲 Dice'],['step','👣 Step'],['spawn','Spawn'],['hit-elves','Elf hit'],['hit-dwarves','Dwarf hit'],['hit-orcs','Orc hit'],['grunt-elves','Elf death'],['grunt-dwarves','Dwarf death'],['grunt-orcs','Orc death'],['boom','💥 Boom'],['mmm','Mmmm'],['ahem','Ahem'],['drumroll','🥁 Drum roll'],['victory','🏆 Victory']].map(([k,n])=>`<button data-dact="snd" data-k="${k}" style="padding:5px 8px;font-size:12px">${n}</button>`).join('')}</div>`;
   if(sTab==='opts'){
     const run=V&&V.game&&V.game.phase!=='over', can=HOST&&!run, dis=can?'':'disabled';
@@ -2010,9 +2031,18 @@ setInterval(tickClock,1000);
 <script>
 /* ===================== v1.9: gliding hops + capture cutscenes ===================== */
 const HOPMS=220;
-let ANIM={cut:true,zoom:false};
+let ANIM={cut:true,zoom:false,turn:true};
 try{const a=JSON.parse(localStorage.getItem('ludo:anim')||'null');if(a)ANIM={...ANIM,...a};}catch(e){}
 const saveAnim=()=>{try{localStorage.setItem('ludo:anim',JSON.stringify(ANIM));}catch(e){}};
+/* your turn: a quiet wooden tock-tock when the turn passes to you (not on a re-roll after a 6); the tab title blinks while you're away */
+let turnWas=false,blinkT=null;const baseTitle=document.title;
+function stopBlink(){if(blinkT){clearInterval(blinkT);blinkT=null;document.title=baseTitle;}}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)stopBlink();});
+setInterval(()=>{const g=V&&V.game;const mine=!!(g&&ME>=0&&g.phase!=='over'&&g.phase!=='opening'&&S.cur===ME&&idle());
+  if(mine&&!turnWas){if(ANIM.turn&&!muted)playSample('turn',.007);
+    if(document.hidden&&!blinkT){let on=false;blinkT=setInterval(()=>{on=!on;document.title=on?'🎲 Your turn!':baseTitle;},900);}}
+  if(!mine&&g&&S.cur!==ME)stopBlink();
+  turnWas=mine||(turnWas&&g&&S.cur===ME&&g.phase!=='over');},250);
 function pawnXYanim(p,i,rel){
   if(rel>=0) return relXY(p,rel);
   const bench=[];S.pawns[p].forEach((r,j)=>{if(r<0||j===i)bench.push(j);});
@@ -2108,7 +2138,8 @@ async function captureScene(p,i,fromRel,toRel,cev){
   setTimeout(()=>{if(bd.animate&&!ANIM.zoom)bd.animate([{transform:'none'},{transform:`translate(${amp}px,${-amp/2}px)`},{transform:`translate(${-amp}px,${amp/2}px)`},{transform:`translate(${amp/2}px,${amp}px)`},{transform:'none'}],{duration:160});},ms);
   // sounds
   if(kind==='e'){setTimeout(()=>bowsfx.draw(),1550*.15);setTimeout(()=>bowsfx.release(),1550*.28);setTimeout(()=>bowsfx.hit(),HIT);}
-  else setTimeout(()=>sfx.hit(FACTIONS[fac].weapon),HIT-30);
+  else{if(kind==='d'&&SBUF.whoosh)setTimeout(()=>playSample('whoosh',.7),Math.max(0,HIT-30-Math.round(SBUF.whoosh.duration*1000)));   // hammer swing ends right on the thud
+    setTimeout(()=>sfx.hit(FACTIONS[fac].weapon),HIT-30);}
   setTimeout(()=>sfx.grunt(FACTIONS[vf].voice),HIT+110);
   setTimeout(()=>sfx.step(),1550*.72);
   // caption over the board
@@ -2126,14 +2157,24 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-dact="anim
 const TRAP={elves:{verb:'net caught',kind:'net'},dwarves:{verb:'keg blew up',kind:'keg'},orcs:{verb:'boulder crushed',kind:'boulder'}};
 const ONE={elves:'an Elf',dwarves:'a Dwarf',orcs:'an Orc'},MANY={elves:'Elves',dwarves:'Dwarves',orcs:'Orcs'};
 const bowsfx={
-  draw(){if(!sfx.ok())return;sfx.burst('bandpass',700,6,.12,.22,1100);sfx.tone(160,210,.06,.22,'triangle');},
-  release(){if(!sfx.ok())return;sfx.tone(240,180,.28,.16,'triangle');sfx.tone(480,360,.1,.12,'sine');sfx.burst('bandpass',2600,3,.18,.04);setTimeout(()=>sfx.burst('highpass',2500,.8,.2,.13,6000),25);},
-  hit(){if(!sfx.ok())return;sfx.tone(180,70,.4,.1);sfx.burst('lowpass',900,1,.35,.07);setTimeout(()=>sfx.tone(1300,2200,.05,.18,'sine'),20);}
+  draw(){},
+  release(){if(!sfx.ok())return;if(!playSample('arrow',.9))setTimeout(()=>sfx.burst('highpass',2500,.8,.2,.13,6000),25);},
+  hit(){}   // the victim's grunt carries the hit
 };
+/* recorded sounds: loaded once, played through the same volume controls; the synth version is the fallback */
+const SAMPLES={net:'/art/s_net.mp3',boulder:'/art/s_boulder.mp3',ntrig:'/art/s_ntrig.mp3',btrig:'/art/s_btrig.mp3',arrow:'/art/s_arrow.mp3',step1:'/art/s_step1.mp3',step2:'/art/s_step2.mp3',step3:'/art/s_step3.mp3',step4:'/art/s_step4.mp3',turn:'/art/s_turn.mp3',pop:'/art/s_pop.mp3',whoosh:'/art/s_whoosh1.mp3',heh_elf1:'/art/s_heh_elf1.mp3',heh_elf2:'/art/s_heh_elf2.mp3',heh_dwarf1:'/art/s_heh_dwarf1.mp3',heh_dwarf2:'/art/s_heh_dwarf2.mp3',heh_orc1:'/art/s_heh_orc1.mp3',heh_orc2:'/art/s_heh_orc2.mp3'},SBUF={};
+function loadSamples(){if(!sfx.ctx||loadSamples.done)return;loadSamples.done=true;
+  Object.entries(SAMPLES).forEach(([k,u])=>fetch(u).then(r=>r.arrayBuffer()).then(b=>sfx.ctx.decodeAudioData(b)).then(buf=>{SBUF[k]=buf;}).catch(()=>{}));}
+document.addEventListener('pointerdown',()=>{try{sfx.init();loadSamples();}catch(e){}},{passive:true});
+let HEH=null;   // the attacker's smug chuckle; faded out when the weapon lands so the hit stays clear
+function hehPlay(f){if(!sfx.ok())return;const k='heh_'+f+(1+Math.floor(Math.random()*2));if(!SBUF[k])return;
+  try{const s=sfx.ctx.createBufferSource(),g=sfx.ctx.createGain();s.buffer=SBUF[k];g.gain.value=.8;s.connect(g).connect(sfx.out());s.start();HEH={s,g};s.onended=()=>{if(HEH&&HEH.s===s)HEH=null;};}catch(e){}}
+function hehFade(){if(!HEH)return;try{const t=sfx.ctx.currentTime;HEH.g.gain.cancelScheduledValues(t);HEH.g.gain.setValueAtTime(HEH.g.gain.value,t);HEH.g.gain.linearRampToValueAtTime(0,t+.12);HEH.s.stop(t+.15);}catch(e){}HEH=null;}
+function playSample(k,vol=1){if(!sfx.ok()||!SBUF[k])return false;try{const s=sfx.ctx.createBufferSource(),g=sfx.ctx.createGain();s.buffer=SBUF[k];g.gain.value=vol;s.connect(g).connect(sfx.out());s.start();return true;}catch(e){return false;}}
 const tsfx={
-  net(){if(!sfx.ok())return;sfx.burst('highpass',900,.7,.35,.28,5200);setTimeout(()=>{sfx.tone(1500,420,.18,.09,'triangle');sfx.burst('bandpass',3000,6,.2,.05);},230);setTimeout(()=>sfx.burst('bandpass',4200,1,.22,.35),430);},
-  boulder(){if(!sfx.ok())return;sfx.tone(900,260,.12,.3,'sine');setTimeout(()=>{sfx.tone(85,38,.85,.45);sfx.burst('lowpass',700,.8,.9,.4,120);},330);setTimeout(()=>{for(let k=0;k<5;k++)setTimeout(()=>sfx.burst('bandpass',500+Math.random()*900,2,.25,.08),k*55);},400);},
-  keg(){if(!sfx.ok())return;for(let k=0;k<7;k++)setTimeout(()=>sfx.burst('highpass',4500+Math.random()*2500,1,.12+Math.random()*.08,.05),k*45);setTimeout(()=>sfx.boom(),330);}
+  net(){if(!sfx.ok())return;if(SBUF.net){playSample('ntrig',.9);setTimeout(()=>playSample('net',1),120);setTimeout(()=>sfx.burst('bandpass',4200,1,.12,.3),430);return;}sfx.burst('highpass',900,.7,.35,.28,5200);setTimeout(()=>{sfx.tone(1500,420,.18,.09,'triangle');sfx.burst('bandpass',3000,6,.2,.05);},230);setTimeout(()=>sfx.burst('bandpass',4200,1,.22,.35),430);},
+  boulder(){if(!sfx.ok())return;if(SBUF.boulder){playSample('btrig',.9);setTimeout(()=>sfx.tone(900,260,.1,.2,'sine'),110);setTimeout(()=>playSample('boulder',1),315);return;}sfx.tone(900,260,.12,.3,'sine');setTimeout(()=>{sfx.tone(85,38,.85,.45);sfx.burst('lowpass',700,.8,.9,.4,120);},330);setTimeout(()=>{for(let k=0;k<5;k++)setTimeout(()=>sfx.burst('bandpass',500+Math.random()*900,2,.25,.08),k*55);},400);},
+  keg(){if(!sfx.ok())return;sfx.burst('bandpass',2600,1.3,.05,.3,4200);setTimeout(()=>sfx.boom(),330);}   // short, soft fuse fizz, then the blast
 };
 async function trapScene(ev){
   const g=document.getElementById('bcut'),bd=document.getElementById('board');if(!g||!bd)return;
