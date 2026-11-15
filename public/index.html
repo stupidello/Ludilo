@@ -594,6 +594,13 @@
   .emotog i{font-style:normal;transition:transform .2s}.emotog.open i{transform:rotate(180deg)}
   .emogrid{display:flex;flex-wrap:wrap;gap:6px;width:100%;order:-1}   /* opens upward, so the Emotes button stays under the pointer */
   @media (max-width:760px){.sheet .emobar{display:none}}
+  /* v1.9.6: share/QR as icon buttons; room code inline */
+  .icb{width:44px;height:40px;padding:0!important;display:inline-flex!important;align-items:center;justify-content:center;flex:none}
+  .icb svg.ic{width:18px!important;height:18px!important}
+  .invrow{align-items:center}.invrow .icb{flex:1;width:auto}.invrow .rcode{flex:none;margin-right:6px;display:flex;align-items:baseline;gap:8px}.invrow .rcode small{color:var(--muted);font-size:12px}
+  .invrow .rcode b{font-size:20px;letter-spacing:.18em}
+  .codebox .icb{width:40px;height:36px}
+  @media (max-width:520px){.rtop .brand{display:none}.rtop .codebox{flex:1;justify-content:space-between}}   /* phone: room code + icons + 🔊 + ⚙️ all fit */
   #volpop{position:fixed;z-index:80;width:250px;display:flex;align-items:flex-end;gap:10px;padding:12px;border-radius:14px;background:var(--panel);border:1px solid var(--line);box-shadow:0 16px 40px rgba(0,0,0,.6)}
   #volpop .vsl{flex:1;display:flex;flex-direction:column;gap:4px}#volpop label{display:flex;justify-content:space-between;font-size:13px;color:var(--muted)}#volpop input{width:100%}
   .volb{min-width:44px}
@@ -1226,7 +1233,7 @@ function showHome(err){
     <div class="or">— or join with a code —</div>
     <div class="row"><input id="code" placeholder="CODE" maxlength="4" value="${esc(want)}" style="text-transform:uppercase;letter-spacing:4px;font-weight:700"><button data-act="join">Join</button><button data-act="watchjoin" title="Join as a watcher">👀</button></div>
     <div class="err" id="err">${esc(err||'')}</div>
-    <div class="hint" style="text-align:right">v1.9.5</div>
+    <div class="hint" style="text-align:right">v1.9.6</div>
   </div>`;
 }
 async function enterRoom(code,token){
@@ -1806,7 +1813,7 @@ function renderRoom(){
   const startBtn=HOST?`<button class="rstart" data-act="start">${V.game?'Start new game':'Start game'}</button>`:`<div class="rwait">Waiting for the host to start…</div>`;
   el.innerHTML=`<div class="rm">
     <div class="rtop"><button class="tb" data-ui="lobby">‹<span class="lbl"> Back to lobby</span></button><div class="brand">Ludilo</div>
-      <div class="codebox"><div><small>Room code</small><b>${esc(V.code)}</b></div><button data-ui="copy">Copy<span class="lk"> link</span></button><button data-ui="qr">QR</button></div>
+      <div class="codebox"><div><small>Room code</small><b>${esc(V.code)}</b></div><button data-ui="copy" class="icb" aria-label="Share link">${SHARE}</button><button data-ui="qr" class="icb" aria-label="QR code">${QR}</button></div>
       <button class="tb volb" data-dact="vol" aria-label="Volume">🔊</button><button class="tb" data-dact="toggle" data-stab="opts" aria-label="Settings">⚙️<span class="lbl"> Settings</span></button></div>
     ${UI.qr?`<div class="qrpop"><div id="qr"></div><div class="hint">Scan to join room ${esc(V.code)}</div><button data-ui="qr">Close</button></div>`:''}
     <div class="rmain"><div class="rleft">
@@ -1959,7 +1966,7 @@ document.addEventListener('click',async e=>{
   if(k==='swapask'){api({op:'swapask',seat:+b.dataset.seat});return;}
   if(k==='swapcancel'){api({op:'swapcancel'});return;}
   if(k==='swapyes'||k==='swapno'){api({op:'swapans',ok:k==='swapyes'});return;}
-  if(k==='copy'){const box=document.getElementById('linkbox');try{await navigator.clipboard.writeText(box.value);b.textContent='Copied!';}catch(err){box.select();document.execCommand&&document.execCommand('copy');b.textContent='Copied!';}setTimeout(()=>{b.innerHTML='Copy<span class="lk"> link</span>';},1500);return;}
+  if(k==='copy'){shareLink(b);return;}
   if(k==='qr'){UI.qr=!UI.qr;renderRoom();return;}
   if(k==='lobby'){await api({op:'leave'});try{localStorage.removeItem('ludo:'+NET.room);}catch(err){};location.href=location.pathname;return;}
 });
@@ -1985,13 +1992,11 @@ function renderDesign(){
   <div class="seg stabs">${tabs.map(([k,n])=>`<button data-dact="tab" data-t="${k}" class="${sTab===k?'on':''}">${n}</button>`).join('')}</div>`;
   if(sTab==='opts'){
     const run=V&&V.game&&V.game.phase!=='over', can=HOST&&!run, dis=can?'':'disabled';
-    const SHARE='<svg class="ic" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="M8.3 10.8l7.4-4.3M8.3 13.2l7.4 4.3"/></svg>';
-    const QR='<svg class="ic" viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M3 3h8v8H3zm2 2v4h4V5zm8-2h8v8h-8zm2 2v4h4V5zM3 13h8v8H3zm2 2v4h4v-4zm8-2h3v3h-3zm3 3h3v3h-3zm3-3h2v3h-2zm-6 6h3v2h-3zm5 0h3v2h-3z"/></svg>';
     const sec=(k,title,body,sub)=>`<button class="sxh${UI.sx[k]?' open':''}" data-dact="sx" data-k="${k}"><span>${title}${sub?` <small>${sub}</small>`:''}</span><i>▾</i></button>${UI.sx[k]?`<div class="sxb">${body}</div>`:''}`;
     h+=`<label class="tline">Your-turn sound<div class="seg mini"><button data-dact="anim" data-k="turn" data-v="1" class="${ANIM.turn?'on':''}">On</button><button data-dact="anim" data-k="turn" data-v="0" class="${ANIM.turn?'':'on'}">Off</button></div></label>
-    <div class="invrow"><button data-dact="invite" class="inv">${SHARE} ${navigator.share&&isPhone()?'Share link':'Copy link'}</button><button data-dact="sqr" class="qrb${UI.sqr?' on':''}" aria-label="QR code">${QR}</button></div>
+    <div class="invrow"><div class="rcode"><small>Room</small><b>${esc(V?V.code:'')}</b></div><button data-dact="invite" class="icb" aria-label="Share link">${SHARE}</button><button data-dact="sqr" class="icb${UI.sqr?' on':''}" aria-label="QR code">${QR}</button></div>
     ${UI.sqr?'<div id="sqrbox" style="align-self:center;background:#fff;padding:10px;border-radius:10px;width:max-content"></div>':''}
-    <div class="hint">Room <b>${esc(V?V.code:'')}</b>. ${V&&V.game&&V.game.phase!=='over'?'Friends who join now can watch, and take over a bot to play.':'Friends who join get a free seat, or watch if the room is full.'}</div>
+    <div class="hint">${V&&V.game&&V.game.phase!=='over'?'Friends who join now can watch, and take over a bot to play.':'Friends who join get a free seat, or watch if the room is full.'}</div>
     ${sec('opts','🎲 Game options',`<label>Board style</label><div class="seg"><button data-act="theme" data-t="fantasy" class="${THEME==='fantasy'?'on':''}" ${dis}>⚔️ Fantasy</button><button data-act="theme" data-t="classic" class="${THEME==='classic'?'on':''}" ${dis}>🎲 Classic</button></div>
     <div class="hint">Fantasy: pick a faction. Classic: pick a seat and a colour.</div>
     <label>Turn timer<b id="tval">${V&&V.timeLimit?V.timeLimit+' s':'Off'}</b></label><input class="tslider" type="range" min="0" max="60" step="5" value="${V&&V.timeLimit||0}" data-timer ${dis}>
@@ -2022,6 +2027,12 @@ function renderDesign(){
 }
 document.addEventListener('pointerdown',e=>{const p=document.getElementById('dpanel');if(!p||!p.classList.contains('open'))return;if(p.contains(e.target)||e.target.closest('[data-dact=toggle]'))return;p.classList.remove('open');},true);
 /* volume: a small slider that drops down from the 🔊 button in the top bar */
+const SHARE='<svg class="ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="M8.3 10.8l7.4-4.3M8.3 13.2l7.4 4.3"/></svg>';
+const QR='<svg class="ic" viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3 3h8v8H3zm2 2v4h4V5zm8-2h8v8h-8zm2 2v4h4V5zM3 13h8v8H3zm2 2v4h4v-4zm8-2h3v3h-3zm3 3h3v3h-3zm3-3h2v3h-2zm-6 6h3v2h-3zm5 0h3v2h-3z"/></svg>';
+async function shareLink(btn){const lb=document.getElementById('linkbox');const url=lb?lb.value:location.href;   // the phone's share sheet when there is one, otherwise copy
+  if(navigator.share){try{await navigator.share({title:'Ludilo',text:'Come play Ludilo with me! Room '+(V?V.code:''),url});}catch(e){}return;}
+  try{await navigator.clipboard.writeText(url);}catch(err){if(lb){lb.select();document.execCommand&&document.execCommand('copy');}}
+  if(btn){const o=btn.innerHTML;btn.innerHTML='✓';setTimeout(()=>{btn.innerHTML=o;},1400);}}
 function volIcon(){const v=(DESIGN.vol||{}).master??1;return muted||v===0?'🔇':v<.4?'🔈':'🔊';}
 function syncVolIcons(){document.querySelectorAll('.volb').forEach(b=>{const t=volIcon();if(b.textContent!==t)b.textContent=t;});}
 setInterval(syncVolIcons,700);
@@ -2045,9 +2056,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-dact
   if(a==='vol'){openVol(b);return;}
   if(a==='vmute'){muted=!muted;try{localStorage.setItem('ludoMuted',muted?'1':'0')}catch(err){};const p=document.getElementById('volpop');if(p)p._draw();syncVolIcons();if(muted&&sfx.stopRoll)sfx.stopRoll();return;}
   if(a==='sx'){UI.sx[b.dataset.k]=!UI.sx[b.dataset.k];renderDesign();}
-  if(a==='invite'){const lb=document.getElementById('linkbox');const url=lb?lb.value:location.href;
-    if(navigator.share&&isPhone()){navigator.share({title:'Ludilo',text:'Come play Ludilo with me! Room '+(V?V.code:''),url}).catch(()=>{});}
-    else{try{await navigator.clipboard.writeText(url);}catch(err){if(lb){lb.select();document.execCommand&&document.execCommand('copy');}}b.textContent='✓ Link copied';setTimeout(()=>renderDesign(),1600);}}
+  if(a==='invite'){shareLink(b);}
   if(a==='restart'){if(!restartArm){restartArm=true;renderDesign();setTimeout(()=>{restartArm=false;renderDesign();},4000);}else{restartArm=false;api({op:'restart'});document.getElementById('dpanel').classList.remove('open');}}
   if(a==='tab'){sTab=b.dataset.t;renderDesign();}
   if(a==='land'){dLand=b.dataset.land;renderDesign();}

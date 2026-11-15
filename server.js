@@ -77,7 +77,44 @@ function land(G, p, i, fx) {
 }
 
 /* ============================== BOTS ============================== */
-const PV = rel => rel < 0 ? 0 : rel <= 38 ? 12 + rel : 62 + (rel - 38) * 2;
+// Every bot has a personality ("style"): a set of weights for one shared evaluation, plus a little
+// randomness. A bot tries each legal move on a copy of the board, scores the result, then picks among
+// the moves that are (nearly) as good as the best one — so bots differ, but never blunder on purpose.
+const PV = rel => rel < 0 ? 0 : rel <= 38 ? 12 + rel : 62 + (rel - 38) * 2;      // worth of a pawn by position
+const BITS = Array.from({ length: 64 }, (_, m) => (m & 1) + (m >> 1 & 1) + (m >> 2 & 1) + (m >> 3 & 1) + (m >> 4 & 1) + (m >> 5 & 1));
+// Weights (see evalFor):
+//  opp: how much enemy progress hurts · fear: dislike of steps enemies can reach · chase: likes lurking 1-6 behind enemy pawns
+//  capB: extra joy per captured pawn value · out: likes (+) or avoids (-) having many pawns on the field · front: pushes the leading pawn
+//  home: extra pull into the home lane · tidy: keeps the home lane packed (3 rolls rule) · oeB: urge to gamble on odds/evens
+//  mine: value of a kill by my mine · far: chance a far-away pawn will ever step on a mine (higher = plants more)
+//  mineB/whim: flat urge to plant / random mood per planting decision · selfMine: fear of my own mines (classic rule only)
+//  shield: how much a mine under my pawn deters attackers (lower = trusts it more) · wary: dislike of enemy mines just ahead
+//  temp/slack: randomness: softmax(temp) among the moves within `slack` points of the best one
+const BASE = { opp: 0.45, fear: 0.9, chase: 0.2, capB: 0, out: -2, front: 0.3, home: 0, mine: 0.55, far: 0.05, mineB: 0, whim: 2, selfMine: 2.5, shield: 0.3, wary: 0.3, oeB: 0, tidy: 5, temp: 0.4, slack: 1.2 };
+const STYLES = {
+  balanced: { temp: 0.15, slack: 0.5 },                                          // autopilot for humans: plain and steady
+  hunter: { chase: 0.4, capB: 0.15, opp: 0.55, fear: 0.8, out: -1, front: 0.2, far: 0.06 },
+  runner: { front: 0.45, out: -4, chase: 0.1, opp: 0.35, fear: 1.1, home: 6, far: 0.03 },
+  trapper: { far: 0.13, mine: 0.6, selfMine: 5, mineB: -1, whim: 12, front: 0.25, chase: 0.15, out: -1 },
+  turtle: { fear: 1.4, out: -6, shield: 0.15, front: 0.2, chase: 0.1, tidy: 8, wary: 0.8, far: 0.06 },
+  gambler: { oeB: 3.5, temp: 0.8, slack: 2.4, chase: 0.25, fear: 0.8, far: 0.07, whim: 10 },
+};
+const STYLE_KEYS = ['hunter', 'runner', 'trapper', 'turtle', 'gambler'];
+for (const k in STYLES) STYLES[k] = { ...BASE, ...STYLES[k], name: k };
+// A bot's style is drawn when a game starts (different styles for the bots of one game, see startGame) or
+// when first needed. Its weights get a ±15% "mood", so two Hunters are not twins. Kept in G.botStyle[seat].
+function rollStyle(name) {
+  const W = { ...STYLES[STYLE_KEYS.includes(name) ? name : STYLE_KEYS[crypto.randomInt(STYLE_KEYS.length)]] };
+  for (const k in W) if (typeof W[k] === 'number') W[k] *= 0.85 + Math.random() * 0.3;
+  return W;
+}
+function styleOf(G, room) {
+  const p = G.cur;
+  if (room && !room.seats[p].bot) return STYLES.balanced;                        // autopilot playing for a human
+  const S = G.botStyle || (G.botStyle = [null, null, null]);
+  return S[p] || (S[p] = rollStyle(room && room.seats[p].style));
+}
+
 const cloneState = st => ({ pawns: st.pawns.map(a => a.slice()), mines: { ...st.mines }, mineSafe: !!st.mineSafe });
 function moverAt(st, p, m) {
   const c = cloneState(st); let oe = null;
@@ -86,47 +123,97 @@ function moverAt(st, p, m) {
   else { const i = c.pawns[p].indexOf(m.from); c.pawns[p][i] = m.to; if (m.to <= 38) { if (isOE(abs(p, m.to))) oe = i; else land(c, p, i, null); } }
   return { st: c, oe };
 }
-function oeValue(st, p, i, g) {
+// expected value of calling g ('odd'/'even') with pawn i standing on an odds/evens step
+function oeValue(st, p, i, g, W) {
   let tot = 0;
-  for (let d = 1; d <= 6; d++) { const c = cloneState(st); const right = (g === 'odd') === (d % 2 === 1); c.pawns[p][i] += right ? d : -d; land(c, p, i, null); tot += evalFor(p, c); }
+  for (let d = 1; d <= 6; d++) { const c = cloneState(st); const right = (g === 'odd') === (d % 2 === 1); c.pawns[p][i] += right ? d : -d; land(c, p, i, null); tot += evalFor(p, c, W); }
   return tot / 6;
 }
-function evalFor(p, st) {
+// bitmask of the dice (bit d-1) with which player q could land a pawn on field step A on their next roll
+function hitDice(st, q, A) {
+  let m = 0;
+  for (const r of st.pawns[q]) {
+    if (r < 0) { if (A === q * SEC) m |= 32; continue; }
+    if (r > 38) continue;
+    const d = (A - abs(q, r) + N) % N;
+    if (d >= 1 && d <= 6 && r + d <= 38) m |= 1 << (d - 1);
+  }
+  return m;
+}
+function evalFor(p, st, W) {
   const own = st.pawns[p];
   if (own.every(r => r >= HOME0)) return 1e4;
-  let score = 0;
-  own.forEach(r => score += PV(r));
-  st.pawns.forEach((ps, q) => { if (q !== p) ps.forEach(r => score -= 0.45 * PV(r)); });
-  if (!homeTidy(st, p)) score -= 5;
+  let score = 0, front = 0;
   const myAt = {};
-  own.forEach(r => { if (r >= 0 && r <= 38) { const a = abs(p, r); myAt[a] = (myAt[a] || 0) + PV(r); } });
-  for (const a in myAt) {
-    const A = +a, hits = new Set();
-    st.pawns.forEach((ps, q) => {
-      if (q === p) return;
-      ps.forEach(r => { if (r < 0 || r > 38) return; const d = (A - abs(q, r) + N) % N; if (d >= 1 && d <= 6 && r + d <= 38) hits.add(d); });
-      if (A === q * SEC && ps.includes(-1)) hits.add('bench' + q);
-    });
-    score -= Math.min(1, hits.size / 6) * myAt[a] * 0.9;
-    for (let d = 1; d <= 6; d++) { const m = st.mines[(A + d) % N]; if (m !== undefined && m !== p) score -= myAt[a] * 0.05; }
+  for (const r of own) {
+    score += PV(r);
+    if (r >= HOME0) score += W.home;
+    if (r >= 0 && r <= 38) { score += W.out; if (r > front) front = r; const a = abs(p, r); myAt[a] = (myAt[a] || 0) + PV(r); }
+  }
+  score += W.front * front;
+  if (!homeTidy(st, p)) score -= W.tidy;
+  const foes = [(p + 1) % 3, (p + 2) % 3];
+  for (let k = 0; k < 2; k++) for (const r of st.pawns[foes[k]]) {
+    const q = foes[k];
+    score -= W.opp * PV(r);
+    if (W.chase && r >= 0 && r <= 38) {                                          // prey in reach (not if it sits on its own mine)
+      const b = abs(q, r);
+      if (st.mines[b] === undefined) score += W.chase * PV(r) * BITS[hitDice(st, p, b)] / 6;
+    }
+  }
+  for (const a in myAt) {                                                        // danger: chance that someone lands here before my next turn
+    const A = +a, guard = st.mines[A] === p ? W.shield : 1;                      // attacking a mined pawn costs the attacker's pawn too
+    let safe = 1;
+    for (const q of foes) safe *= 1 - guard * BITS[hitDice(st, q, A)] / 6;
+    score -= W.fear * (1 - safe) * myAt[a];
   }
   for (const a in st.mines) {
-    if (st.mines[a] !== p) continue; const A = +a;
-    st.pawns.forEach((ps, q) => { if (q === p) return; ps.forEach(r => { if (r < 0 || r > 38) return; const d = (A - abs(q, r) + N) % N; if (d >= 1 && d <= 6 && r + d <= 38) score += PV(r) * 0.55 / 6; }); });
+    const A = +a, o = st.mines[a];
+    if (o === p) {                                                               // my mine: every pawn that still has to pass it may step on it
+      for (const q of foes) {
+        const R = (A - q * SEC + N) % N, kill = W.mine * PV(R);
+        for (const r of st.pawns[q]) if (r < R) score += kill * (R - r <= 6 && r >= 0 ? 1 / 6 : W.far);
+      }
+      if (!st.mineSafe) {                                                        // classic rule: so may my own pawns
+        const R = (A - p * SEC + N) % N, loss = W.selfMine * PV(R);
+        for (const r of own) if (r < R) score -= loss * (R - r <= 6 && r >= 0 ? 1 / 6 : W.far);
+      }
+    } else {
+      for (const r of own) { if (r < 0 || r > 38) continue; const d = (A - abs(p, r) + N) % N; if (d >= 1 && d <= 6 && r + d <= 38) score -= W.wary * PV(r) / 6; }
+    }
   }
   return score;
 }
-function botPick(G) {
-  let best = null, bv = -Infinity;
-  for (const m of G.moves) {
-    const r = moverAt(G, G.cur, m);
-    const v = (r.oe !== null ? Math.max(oeValue(r.st, G.cur, r.oe, 'odd'), oeValue(r.st, G.cur, r.oe, 'even')) : evalFor(G.cur, r.st)) + Math.random() * 0.01;
-    if (v > bv) { bv = v; best = m; }
-  }
-  if (G.moves.every(m => m.t === 'mine') && evalFor(G.cur, cloneState(G)) >= bv) return null;   // planting is optional
-  return best;
+// all options with their scores; `null` = skip planting and just roll again (only when nothing else is possible)
+function botOptions(G, W) {
+  const p = G.cur, before = W.capB ? G.pawns.reduce((s, ps, q) => q === p ? s : s + ps.reduce((x, r) => x + (r >= 0 && r <= 38 ? PV(r) : 0), 0), 0) : 0;
+  const opts = G.moves.map(m => {
+    const r = moverAt(G, p, m); let v;
+    if (r.oe !== null) v = Math.max(oeValue(r.st, p, r.oe, 'odd', W), oeValue(r.st, p, r.oe, 'even', W)) + W.oeB;
+    else {
+      v = evalFor(p, r.st, W);
+      if (m.t === 'mine') v += W.mineB + (Math.random() - 0.5) * W.whim;
+      else if (W.capB) v += W.capB * (before - r.st.pawns.reduce((s, ps, q) => q === p ? s : s + ps.reduce((x, x2) => x + (x2 >= 0 && x2 <= 38 ? PV(x2) : 0), 0), 0));
+    }
+    return { m, v };
+  });
+  if (G.moves.every(m => m.t === 'mine')) opts.push({ m: null, v: evalFor(p, cloneState(G), W) });   // planting is optional
+  return opts;
 }
-function botGuess(G) { const st = cloneState(G); return oeValue(st, G.cur, G.oe.i, 'odd') >= oeValue(st, G.cur, G.oe.i, 'even') ? 'odd' : 'even'; }
+function softPick(opts, W) {
+  let best = -Infinity; for (const o of opts) if (o.v > best) best = o.v;
+  const pool = opts.filter(o => o.v >= best - W.slack);
+  if (pool.length === 1 || best >= 9e3) return pool.find(o => o.v === best);    // a winning move is never left to chance
+  let tot = 0; const w = pool.map(o => { const x = Math.exp((o.v - best) / W.temp); tot += x; return x; });
+  let x = Math.random() * tot;
+  for (let k = 0; k < pool.length; k++) { x -= w[k]; if (x <= 0) return pool[k]; }
+  return pool[pool.length - 1];
+}
+function botPick(G, room) { const W = styleOf(G, room); return softPick(botOptions(G, W), W).m; }
+function botGuess(G, room) {
+  const W = styleOf(G, room), st = cloneState(G);
+  return softPick([{ m: 'odd', v: oeValue(st, G.cur, G.oe.i, 'odd', W) }, { m: 'even', v: oeValue(st, G.cur, G.oe.i, 'even', W) }], { slack: W.slack / 3, temp: W.temp / 3 }).m;
+}
 
 /* ============================== ROOMS ============================== */
 const rooms = new Map();
@@ -162,7 +249,7 @@ function publicState(room) {
   const G = room.game;
   return {
     code: room.code, theme: room.theme, timeLimit: room.timeLimit, hints: !!room.hints, mineRule: room.mineRule === 'safe' ? 'safe' : 'classic', swap: room.swap && { from: room.swap.from, to: room.swap.to },
-    seats: room.seats.map((s, i) => ({ name: seatName(room, i), bot: s.bot, open: s.open, human: !!s.token, faction: s.faction, c: colorOf(room, i), online: !!s.token && Date.now() - s.lastSeen < 15000 })),
+    seats: room.seats.map((s, i) => ({ name: seatName(room, i), bot: s.bot, open: s.open, human: !!s.token, faction: s.faction, c: colorOf(room, i), style: s.bot && G && G.botStyle && G.botStyle[i] ? G.botStyle[i].name : null, online: !!s.token && Date.now() - s.lastSeen < 15000 })),
     host: seatOf(room, room.hostToken),
     god: !!room.god, forceDie: room.god ? room.forceDie || null : null, botsPaused: !!(room.god && room.botsPaused),
     hostSpec: room.specs && room.specs[room.hostToken] ? room.specs[room.hostToken].name : null,
@@ -220,6 +307,8 @@ function startGame(room) {
   room.swap = null;
   room.seats.forEach(s => { if (!s.token) { s.bot = true; s.open = false; } });
   room.game = newGame(); room.busyUntil = 0; room.game.mineSafe = room.mineRule === 'safe';
+  const deck = STYLE_KEYS.map(k => [Math.random(), k]).sort((a, b) => a[0] - b[0]).map(x => x[1]);   // fresh bot personalities every game
+  room.game.botStyle = room.seats.map((s, i) => s.bot ? rollStyle(deck[i]) : null);
   emit(room, { t: 'state', m: 'New game! Everyone rolls their own dice. Highest starts.' });
   tickBots(room);
 }
@@ -356,8 +445,8 @@ function tickBots(room) {
     if (bp !== undefined) { think = 500 + Math.random() * 500; act = () => openRoll(room, bp); }
   } else if (room.seats[G.cur].bot || (room.auto != null && room.auto === G.turnId)) {
     if (G.phase === 'roll') act = () => doRoll(room, G.cur);
-    else if (G.phase === 'choose') { think = 750; act = () => { const m = botPick(G); if (m) doMove(room, G.cur, m); else doRoll(room, G.cur); }; }
-    else if (G.phase === 'guess') { think = 800; act = () => doGuess(room, G.cur, botGuess(G)); }
+    else if (G.phase === 'choose') { think = 750; act = () => { const m = botPick(G, room); if (m) doMove(room, G.cur, m); else doRoll(room, G.cur); }; }
+    else if (G.phase === 'guess') { think = 800; act = () => doGuess(room, G.cur, botGuess(G, room)); }
   }
   if (!act) return;
   const wait = Math.max(0, room.busyUntil - Date.now()) + think;
@@ -383,7 +472,7 @@ function rebuildRoom(code, snap) {
     code, theme: snap.theme === 'classic' ? 'classic' : 'fantasy', game: null, seq: 0, events: [], waiters: [], busyUntil: 0, botTimer: null, lastActive: Date.now(),
     seats: snap.seats.map((x, i) => {
       const bot = !!x.bot, human = !!x.human && !bot;
-      return { token: null, name: clean(x.name), bot, open: !bot && !human, reserved: human, faction: FKEYS.includes(x.faction) ? x.faction : FKEYS[i],
+      return { token: null, name: clean(x.name), bot, open: !bot && !human, reserved: human, style: STYLE_KEYS.includes(x.style) ? x.style : null, faction: FKEYS.includes(x.faction) ? x.faction : FKEYS[i],
                c: PALETTE.some(([, c]) => c === x.c) ? x.c : PALETTE[i][1], lastSeen: 0 };
     }),
     hostToken: null, hostSeat: Number.isInteger(snap.host) ? snap.host : -1,
